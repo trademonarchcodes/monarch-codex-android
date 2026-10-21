@@ -481,7 +481,7 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
   Future<void> review(int id,String decision)async{
     final note=notes.putIfAbsent(id,()=>TextEditingController()).text.trim();
     if(decision=='reject'&&note.isEmpty){setState(()=>message='Add a rejection reason before rejecting a connection.');return;}
-    setState(()=>{busy.add(id),message=null});
+    setState(() { busy.add(id); message=null; });
     try{await widget.api.reviewCooperativeConnection(id:id,decision:decision,note:note);if(mounted){setState(()=>message='Connection request '+(decision=='approve'?'approved.':'rejected.'));reload();}}
     catch(e){if(mounted)setState(()=>message='Could not review the request. Please retry.');}
     finally{if(mounted)setState(()=>busy.remove(id));}
@@ -524,7 +524,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
     final k=key(memberId,category),level=levels[k]??'red';
     if(memberId==widget.currentMemberId){setState(()=>message='You cannot change your own permissions.');return;}
     if(level=='gold'&&(actions[k]==null||actions[k]!.isEmpty)){setState(()=>message='Gold access requires at least one selected action.');return;}
-    setState(()=>{saving.add(k),message=null});
+    setState(() { saving.add(k); message=null; });
     try{await widget.api.saveAdminPermission(adminMemberId:memberId,category:category,level:level,allowedActions:(actions[k]??<String>{}).toList());if(mounted)setState(()=>message='Permission saved for '+category.replaceAll('_',' ')+'.');}
     catch(e){if(mounted)setState(()=>message='Could not save permission. Confirm you are signed in as Super Admin.');}
     finally{if(mounted)setState(()=>saving.remove(k));}
@@ -547,7 +547,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
           const SizedBox(height:8),
           ...categories.map((category){
             final k=key(memberId,category);
-            final existing=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category).firstOrNull;
+            final matches=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category);\n            final existing=matches.isEmpty?null:matches.first;
             final current=levels[k]??(existing?['level']??'red').toString();
             actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']));
             return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
