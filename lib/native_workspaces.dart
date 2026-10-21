@@ -547,7 +547,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
           const SizedBox(height:8),
           ...categories.map((category){
             final k=key(memberId,category);
-            final matches=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category);\n            final existing=matches.isEmpty?null:matches.first;
+            final matches=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category);
+            final existing=matches.isEmpty?null:matches.first;
             final current=levels[k]??(existing?['level']??'red').toString();
             actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']));
             return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
