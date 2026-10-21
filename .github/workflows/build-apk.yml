@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -173,3 +173,15 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish direct APK download
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Monarch Codex Android — Latest APK
+          body: Automatically updated release containing the latest successfully built Monarch Codex Android APK.
+          prerelease: true
+          files: build/app/outputs/flutter-apk/app-release.apk
+          overwrite_files: true
+          fail_on_unmatched_files: true
