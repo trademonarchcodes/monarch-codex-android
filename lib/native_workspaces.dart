@@ -158,6 +158,94 @@ class _AdminShellState extends State<AdminShell>{
   Widget _stat(String label,dynamic value,IconData icon,bool dark)=>Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[Icon(icon,color:gold,size:20),const SizedBox(height:10),Text((value??'—').toString(),style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(label,style:const TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w900))]));
 }
 
+
+class AdminReviewQueuePage extends StatefulWidget {
+  const AdminReviewQueuePage({super.key,required this.api,required this.type,required this.dark});
+  final MonarchApi api;final String type;final bool dark;
+  @override State<AdminReviewQueuePage> createState()=>_AdminReviewQueuePageState();
+}
+class _AdminReviewQueuePageState extends State<AdminReviewQueuePage>{
+ late Future<Map<String,dynamic>> future;final Map<int,TextEditingController> notes={};final Set<int> busy={};
+ @override void initState(){super.initState();future=widget.api.adminReviewQueue(widget.type);}
+ @override void dispose(){for(final c in notes.values){c.dispose();}super.dispose();}
+ void reload()=>setState(()=>future=widget.api.adminReviewQueue(widget.type));
+ TextEditingController note(int id)=>notes.putIfAbsent(id,()=>TextEditingController());
+ Future<void> act(Map<String,dynamic> row,String decision)async{
+  final id=int.tryParse(row['id'].toString());if(id==null)return;final memo=note(id).text.trim();
+  if(decision!='approved'&&memo.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Add a reason or instructions first.')));return;}
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Confirm action'),content:Text('Confirm '+decision+' request #'+id.toString()+' '+(row['currency']??'').toString()+' '+(row['amount']??'').toString()+'.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Confirm'))]));
+  if(ok!=true||!mounted)return;String ref='';
+  if(widget.type=='withdrawals'&&decision=='paid'){final c=TextEditingController();ref=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Transfer reference'),content:TextField(controller:c,decoration:const InputDecoration(labelText:'Actual completed transfer reference')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,c.text.trim()),child:const Text('Continue'))]))??'';c.dispose();if(ref.isEmpty)return;}
+  setState(()=>busy.add(id));try{
+   if(widget.type=='kyc')await widget.api.reviewKyc(id:id,status:decision,note:memo);
+   else if(widget.type=='deposits')await widget.api.reviewDeposit(id:id,decision:decision,note:memo,confirmed:true);
+   else await widget.api.reviewWithdrawal(id:id,decision:decision,note:memo,paymentReference:ref,confirmed:true);
+   if(mounted){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Server confirmed the review decision.')));reload();}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(_workspaceError(e))));}finally{if(mounted)setState(()=>busy.remove(id));}
+ }
+ @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.type=='kyc'?'KYC verification':widget.type=='deposits'?'Deposit reviews':'Withdrawal reviews'),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
+  if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+  if(snap.hasError)return ListView(padding:const EdgeInsets.all(16),children:[Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+  final rows=(snap.data?['items'] as List? ?? []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+  if(rows.isEmpty)return const Center(child:Text('No review requests found.',style:TextStyle(color:muted)));
+  return ListView(padding:const EdgeInsets.all(14),children:[Text(rows.length.toString()+' requests',style:const TextStyle(color:muted)),const SizedBox(height:8),...rows.map((r){
+   final id=int.tryParse((r['id']??'0').toString())??0;final status=(r['status']??'').toString();final pending=status=='pending';final person=(r['legal_full_name']??r['full_name']??r['username']??'Member').toString();final dest=r['payoutDestination'];
+   return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    Row(children:[Expanded(child:Text(person,style:const TextStyle(fontWeight:FontWeight.w900))),Text(status.toUpperCase(),style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900))]),
+    Text('Request #'+id.toString()+' · '+(r['created_at']??r['submitted_at']??'').toString(),style:const TextStyle(color:muted,fontSize:10)),
+    if(widget.type!='kyc')Padding(padding:const EdgeInsets.symmetric(vertical:7),child:Text((r['currency']??'').toString()+' '+(r['amount']??'').toString(),style:const TextStyle(color:gold,fontSize:20,fontWeight:FontWeight.w900))),
+    ...['contact_email','document_type','document_issuer_country','payment_label','payment_reference','reviewer_note'].where((k)=>r[k]!=null&&r[k].toString().isNotEmpty).map((k)=>Text(k.replaceAll('_',' ')+': '+r[k].toString(),style:const TextStyle(color:muted,fontSize:11))),
+    if(dest is Map)Text('Payout: '+(dest['bankName']??'').toString()+' · '+(dest['accountName']??'').toString()+' · '+(dest['accountNumber']??'').toString(),style:const TextStyle(color:muted,fontSize:11)),
+    if(pending||(widget.type=='withdrawals'&&status=='approved'))...[
+     TextField(controller:note(id),maxLines:2,decoration:const InputDecoration(labelText:'Review note / rejection reason')),
+     Wrap(spacing:7,runSpacing:7,children:[
+      if(widget.type=='kyc')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve')),
+      if(widget.type=='kyc')OutlinedButton(onPressed:busy.contains(id)?null:()=>act(r,'needs_resubmission'),child:const Text('Request resubmission')),
+      if(widget.type=='deposits')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve & credit')),
+      if(widget.type=='withdrawals'&&status=='pending')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve payout')),
+      if(widget.type=='withdrawals'&&status=='approved')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'paid'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Record paid')),
+      OutlinedButton(onPressed:busy.contains(id)?null:()=>act(r,'rejected'),child:const Text('Reject')),
+      if(busy.contains(id))const SizedBox(width:18,height:18,child:CircularProgressIndicator(strokeWidth:2,color:gold)),
+     ]),
+    ]
+   ])));
+  })]);
+ }));
+}
+
+class AdminDataPage extends StatefulWidget{
+ const AdminDataPage({super.key,required this.api,required this.kind,required this.dark});
+ final MonarchApi api;final String kind;final bool dark;
+ @override State<AdminDataPage> createState()=>_AdminDataPageState();
+}
+class _AdminDataPageState extends State<AdminDataPage>{
+ late Future<Map<String,dynamic>> future;
+ @override void initState(){super.initState();future=load();}
+ Future<Map<String,dynamic>> load()=>widget.kind=='audit'?widget.api.adminAuditEvents():widget.kind=='analytics'?widget.api.adminAnalytics():widget.api.adminSecurity();
+ void reload()=>setState(()=>future=load());
+ @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.kind=='audit'?'Audit history':widget.kind=='analytics'?'Analytics':'Security centre'),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
+  if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+  if(snap.hasError)return ListView(padding:const EdgeInsets.all(16),children:[Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+  final d=snap.data??{};final widgets=<Widget>[];
+  Widget metric(String label,dynamic value)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(title:Text(label,style:const TextStyle(color:muted,fontSize:11)),subtitle:Text(value==null?'—':value.toString(),style:const TextStyle(color:gold,fontSize:21,fontWeight:FontWeight.w900))));
+  if(widget.kind=='analytics'){
+   final k=d['kyc'] is Map?Map<String,dynamic>.from(d['kyc']):<String,dynamic>{};final dep=d['deposits'] is Map?Map<String,dynamic>.from(d['deposits']):<String,dynamic>{};final w=d['withdrawals'] is Map?Map<String,dynamic>.from(d['withdrawals']):<String,dynamic>{};
+   widgets.addAll([metric('Total members',d['members']),metric('KYC total',k['total']),metric('KYC pending',k['pending']),metric('KYC approved',k['approved']),metric('Deposits pending',dep['pending']),metric('Approved deposit volume',dep['approvedAmount']),metric('Withdrawals pending',w['pending']),metric('Completed payout volume',w['paidAmount'])]);
+  }else if(widget.kind=='audit'){
+   final rows=(d['events'] as List? ?? []).whereType<Map>().toList();widgets.add(Text(rows.length.toString()+' recent audit events',style:const TextStyle(color:muted)));
+   for(final e in rows){widgets.add(Card(color:widget.dark?panel:Colors.white,child:ListTile(title:Text((e['action']??'Action').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),subtitle:Text((e['target_type']??'').toString()+' #'+(e['target_id']??'').toString()+' · '+(e['username']??'').toString()+' · '+(e['created_at']??'').toString()))));}
+  }else{
+   final admins=(d['admins'] as List? ?? []).whereType<Map>().toList();final events=(d['securityEvents'] as List? ?? []).whereType<Map>().toList();final session=d['session'] is Map?Map<String,dynamic>.from(d['session']):<String,dynamic>{};
+   widgets.addAll([metric('Authenticated session',session['authenticated']==true?'Verified':'Unknown'),metric('Fresh re-authentication',session['reauthenticationAvailable']==true?'Available':'Not exposed by backend'),metric('Financial second confirmation',session['secondConfirmationRequired']==true?'Required':'Unknown'),const Text('Administrator accounts',style:TextStyle(fontWeight:FontWeight.w900,fontSize:16))]);
+   for(final a in admins){widgets.add(ListTile(leading:const Icon(Icons.shield_outlined,color:gold),title:Text((a['full_name']??a['username']??'Admin').toString()),subtitle:Text((a['role']??'').toString()+' · '+(a['is_active']==1?'Active':'Inactive'))));}
+   widgets.add(const Text('Security events',style:TextStyle(fontWeight:FontWeight.w900,fontSize:16)));
+   for(final e in events){widgets.add(ListTile(leading:const Icon(Icons.event_note,color:gold),title:Text((e['action']??'Event').toString()),subtitle:Text((e['target_type']??'').toString()+' · '+(e['created_at']??'').toString())));}
+  }
+  return ListView(padding:const EdgeInsets.all(14),children:widgets);
+ }));
+}
+
+
 class RoleManagerPage extends StatefulWidget {
  const RoleManagerPage({super.key,required this.api,required this.dark}); final MonarchApi api; final bool dark;
  @override State<RoleManagerPage> createState()=>_RoleManagerPageState();
