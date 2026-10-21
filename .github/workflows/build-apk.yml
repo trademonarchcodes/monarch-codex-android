@@ -172,7 +172,7 @@ jobs:
               # Some transitive Flutter plugins still declare compileSdk 34,
               # which fails AAR metadata checks for dependencies requiring API 36.
               updated, count = re.subn(
-                  r"(compileSdkVersion\\s+|compileSdk\\s*=\\s*)34\\b",
+                  r"(compileSdkVersion\s+|compileSdk\s*=\s*)34\b",
                   lambda m: m.group(1) + "36",
                   source,
               )
