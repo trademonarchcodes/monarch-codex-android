@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'native_workspaces.dart';
+import 'package:monarch_codex/native_workspaces.dart';
 
 const gold = Color(0xFFF3CF3C);
 const ink = Color(0xFF09090B);
