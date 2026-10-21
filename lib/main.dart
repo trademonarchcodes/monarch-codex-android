@@ -159,7 +159,7 @@ class _AuthPageState extends State<AuthPage> {
         TextButton(onPressed: busy ? null : () => setState(() { register = !register; error = ''; notice = ''; }), child: Text(register ? 'Already a Monarch? Sign in' : 'New here? Become a Monarch', style: const TextStyle(color: gold, fontWeight: FontWeight.w800))),
         if (!register) TextButton(onPressed: () => launchUrl(Uri.parse(site + '/forgot-password'), mode: LaunchMode.externalApplication), child: const Text('Forgot password?', style: TextStyle(color: muted))),
       ]))),
-    )));
+    ))));
   }
   String? requiredField(String? value) => value == null || value.trim().isEmpty ? 'This field is required' : null;
 }
@@ -382,7 +382,7 @@ class _ShellState extends State<Shell> {
       const SizedBox(height: 15), Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
       const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
       const SizedBox(height: 13), Text(body, style: const TextStyle(color: muted, fontSize: 13, height: 1.6)),
-    ]),
+    ])),
   ]);
 
   Widget tile(String title, String subtitle, IconData icon, bool dark, VoidCallback action) => Container(
