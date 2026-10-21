@@ -17,10 +17,13 @@ jobs:
           channel: stable
           cache: true
       - run: flutter --version
-      # This repository contains Flutter sources but did not include the Android platform scaffold.
-      # Generate the standard Android project files in the checked-out workspace before building.
+      # Generate Android scaffolding, then install the official Monarch Codex launcher artwork.
       - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+      - run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
+      - run: rsvg-convert -w 1024 -h 1024 assets/images/monarch-codex-app-icon.svg > assets/images/monarch-codex-app-icon.png
       - run: flutter pub get
+      - run: dart run flutter_launcher_icons
+      - run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
       - run: dart format --output=none lib
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
