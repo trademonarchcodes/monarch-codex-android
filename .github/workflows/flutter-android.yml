@@ -19,6 +19,11 @@ jobs:
       - run: flutter --version
       # Generate Android scaffolding, then install the official Monarch Codex launcher artwork.
       - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+      # Release builds need INTERNET in the main manifest; Flutter's generated debug manifest alone is not enough.
+      - name: Enable network access in release APK
+        run: |
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml
       - run: sudo apt-get update && sudo apt-get install -y librsvg2-bin
       - run: rsvg-convert -w 1024 -h 1024 assets/images/monarch-codex-app-icon.svg > assets/images/monarch-codex-app-icon.png
       - run: flutter pub get
