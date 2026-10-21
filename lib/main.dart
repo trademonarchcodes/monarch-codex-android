@@ -84,6 +84,8 @@ class MonarchApi {
   Future<Map<String,dynamic>> socialLinks() async => Map<String,dynamic>.from((await dio.get('social-links')).data as Map);
   Future<Map<String,dynamic>> adminCooperativeConnections() async => Map<String,dynamic>.from((await dio.get('admin/cooperative/connections')).data as Map);
   Future<Map<String,dynamic>> reviewCooperativeConnection({required int id,required String decision,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/cooperative/connections/$id/review',data:{'decision':decision,'note':note})).data as Map);
+  Future<Map<String,dynamic>> adminSocialLinks() async => Map<String,dynamic>.from((await dio.get('admin/social-links')).data as Map);
+  Future<Map<String,dynamic>> saveAdminSocialLink({required String key,required String label,required String url,required bool active}) async => Map<String,dynamic>.from((await dio.post('admin/social-links',data:{'key':key,'label':label,'url':url,'active':active})).data as Map);
   Future<Map<String,dynamic>> adminPermissions() async => Map<String,dynamic>.from((await dio.get('admin/permissions')).data as Map);
   Future<Map<String,dynamic>> saveAdminPermission({required int adminMemberId,required String category,required String level,required List<String> allowedActions}) async => Map<String,dynamic>.from((await dio.post('admin/permissions',data:{'adminMemberId':adminMemberId,'category':category,'level':level,'allowedActions':allowedActions})).data as Map);
   Future<Map<String,dynamic>> roles() async => Map<String,dynamic>.from((await dio.get('roles')).data as Map);
@@ -229,6 +231,31 @@ class _AuthPageState extends State<AuthPage> {
     ))));
   }
   String? requiredField(String? value) => value == null || value.trim().isEmpty ? 'This field is required' : null;
+}
+
+class SocialLinksPage extends StatefulWidget {
+  const SocialLinksPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<SocialLinksPage> createState()=>_SocialLinksPageState();
+}
+class _SocialLinksPageState extends State<SocialLinksPage>{
+  late Future<Map<String,dynamic>> future;String? error;
+  @override void initState(){super.initState();future=widget.api.socialLinks();}
+  void reload()=>setState(()=>future=widget.api.socialLinks());
+  Future<void> open(String raw)async{final uri=Uri.tryParse(raw);if(uri==null||uri.scheme!='https'||uri.host.isEmpty){setState(()=>error='This link is not a valid secure HTTPS address.');return;}try{final ok=await launchUrl(uri,mode:LaunchMode.externalApplication);if(!ok&&mounted)setState(()=>error='Could not open this link. Please try again.');}catch(_){if(mounted)setState(()=>error='Could not open this link. Please try again.');}}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(20),children:[const Text('Official social links are unavailable right now.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('OFFICIAL MONARCH CODEX CHANNELS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Open verified official links. Links open outside the app using a secure HTTPS address.',style:TextStyle(color:muted)),
+      if(error!=null)Padding(padding:const EdgeInsets.all(8),child:Text(error!,style:const TextStyle(color:Colors.redAccent))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No official social links have been published yet.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
+      ...items.map((x)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:const Icon(Icons.public,color:gold),title:Text((x['label']??'Official channel').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text((x['url']??'').toString(),maxLines:2,overflow:TextOverflow.ellipsis),trailing:const Icon(Icons.open_in_new,color:gold),onTap:()=>open((x['url']??'').toString())))),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh official links'))
+    ]);
+  });
 }
 
 class NotificationsPage extends StatefulWidget {
@@ -387,6 +414,7 @@ class _ShellState extends State<Shell> {
         quick('Verify KYC', Icons.shield_outlined, () => page('KYC Verification'), dark),
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
         quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
+        quick('Social Links', Icons.public, () => page('Social Links'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -429,6 +457,7 @@ class _ShellState extends State<Shell> {
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
     if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
+    if (p == 'Social Links') return SocialLinksPage(api: widget.api, dark: dark);
     return featurePage(p, 'Monarch Codex', Icons.auto_awesome, 'This section will connect to your existing account backend. Existing records are not changed.', dark);
   }
 
