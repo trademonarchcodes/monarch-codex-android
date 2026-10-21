@@ -174,6 +174,7 @@ class Shell extends StatefulWidget {
 }
 class _ShellState extends State<Shell> {
   int tab = 0;
+  final int photoVersion = DateTime.now().millisecondsSinceEpoch;
   bool menu = false, loading = true;
   String? special, error;
   Map<String, dynamic>? data;
@@ -199,7 +200,7 @@ class _ShellState extends State<Shell> {
             Text(title.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .8)),
             Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900)),
           ])),
-          IconButton(onPressed: refresh, icon: const Icon(Icons.notifications_none_rounded, color: gold)),
+          IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
         Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
         if (special == null) bottomNav(dark),
@@ -264,7 +265,7 @@ class _ShellState extends State<Shell> {
     final m = data?['member'] is Map ? Map<String, dynamic>.from(data!['member'] as Map) : widget.member;
     return ListView(padding: const EdgeInsets.all(15), children: [
       Container(padding: const EdgeInsets.all(20), decoration: card(dark), child: Column(children: [
-        Container(width: 76, height: 76, decoration: BoxDecoration(color: const Color(0xFF2A220F), borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFF705A20))), child: const Icon(Icons.person, color: gold, size: 40)),
+        avatar(m, 76, 24),
         const SizedBox(height: 10), Text((m['fullName'] ?? 'Monarch Member').toString(), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
         const SizedBox(height: 4), Text((m['email'] ?? '').toString(), style: const TextStyle(color: muted, fontSize: 12)),
         const SizedBox(height: 10), Text((m['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
@@ -280,7 +281,7 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
-    if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
+    if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [\n      featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),\n      tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),\n      tile('Refresh account status', 'Reload your latest overview and unread count.', Icons.refresh, dark, refresh),\n    ]);\n    if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
       tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
       tile('Password recovery', 'Secure password reset.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
@@ -331,6 +332,19 @@ class _ShellState extends State<Shell> {
     ])),
     TextButton.icon(onPressed: widget.signOut, icon: const Icon(Icons.logout, size: 17), label: const Text('Sign out'), style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF8D85))),
   ])));
+
+  Widget avatar(Map<String, dynamic> member, double size, double radius) {
+    final raw = (member['profilePhotoUrl'] ?? '').toString().trim();
+    final url = raw.isEmpty ? '' : (raw.startsWith('http://') || raw.startsWith('https://') ? raw : site + (raw.startsWith('/') ? raw : '/$raw')) + (raw.contains('?') ? '&' : '?') + 'v=$photoVersion';
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(color: const Color(0xFF2A220F), borderRadius: BorderRadius.circular(radius), border: Border.all(color: const Color(0xFF705A20))),
+      clipBehavior: Clip.antiAlias,
+      child: url.isEmpty
+        ? Icon(Icons.person, color: gold, size: size * .52)
+        : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.person, color: gold, size: size * .52)),
+    );
+  }
 
   Widget sideItem(String label, IconData icon, VoidCallback action, bool dark) => ListTile(
     dense: true, visualDensity: const VisualDensity(vertical: -2), minLeadingWidth: 18, horizontalTitleGap: 7,
