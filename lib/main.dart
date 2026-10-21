@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -335,18 +336,8 @@ class _ShellState extends State<Shell> {
     TextButton.icon(onPressed: widget.signOut, icon: const Icon(Icons.logout, size: 17), label: const Text('Sign out'), style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF8D85))),
   ])));
 
-  Widget avatar(Map<String, dynamic> member, double size, double radius) {
-    final raw = (member['profilePhotoUrl'] ?? '').toString().trim();
-    final url = raw.isEmpty ? '' : (raw.startsWith('http://') || raw.startsWith('https://') ? raw : site + (raw.startsWith('/') ? raw : '/$raw')) + (raw.contains('?') ? '&' : '?') + 'v=$photoVersion';
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(color: const Color(0xFF2A220F), borderRadius: BorderRadius.circular(radius), border: Border.all(color: const Color(0xFF705A20))),
-      clipBehavior: Clip.antiAlias,
-      child: url.isEmpty
-        ? Icon(Icons.person, color: gold, size: size * .52)
-        : Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.person, color: gold, size: size * .52)),
-    );
-  }
+  Widget avatar(Map<String, dynamic> member, double size, double radius) =>
+      MemberAvatar(api: widget.api, member: member, size: size, radius: radius, version: photoVersion);
 
   Widget sideItem(String label, IconData icon, VoidCallback action, bool dark) => ListTile(
     dense: true, visualDensity: const VisualDensity(vertical: -2), minLeadingWidth: 18, horizontalTitleGap: 7,
@@ -408,6 +399,43 @@ class _ShellState extends State<Shell> {
 }
 
 double number(dynamic value) => value is num ? value.toDouble() : double.tryParse(value?.toString() ?? '') ?? 0;
+
+class MemberAvatar extends StatefulWidget {
+  const MemberAvatar({super.key, required this.api, required this.member, required this.size, required this.radius, required this.version});
+  final MonarchApi api;
+  final Map<String, dynamic> member;
+  final double size, radius;
+  final int version;
+  @override State<MemberAvatar> createState() => _MemberAvatarState();
+}
+class _MemberAvatarState extends State<MemberAvatar> {
+  Future<Uint8List?>? bytes;
+  @override void initState() { super.initState(); bytes = load(); }
+  @override void didUpdateWidget(covariant MemberAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.member['profilePhotoUrl'] != widget.member['profilePhotoUrl'] || oldWidget.version != widget.version) bytes = load();
+  }
+  Future<Uint8List?> load() async {
+    final raw = (widget.member['profilePhotoUrl'] ?? '').toString().trim();
+    if (raw.isEmpty) return null;
+    final url = (raw.startsWith('http://') || raw.startsWith('https://') ? raw : site + (raw.startsWith('/') ? raw : '/$raw')) + (raw.contains('?') ? '&' : '?') + 'v=${widget.version}';
+    try {
+      final response = await widget.api.dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+      final data = response.data;
+      return data == null ? null : Uint8List.fromList(data);
+    } catch (_) { return null; }
+  }
+  @override Widget build(BuildContext context) => Container(
+    width: widget.size, height: widget.size,
+    decoration: BoxDecoration(color: const Color(0xFF2A220F), borderRadius: BorderRadius.circular(widget.radius), border: Border.all(color: const Color(0xFF705A20))),
+    clipBehavior: Clip.antiAlias,
+    child: FutureBuilder<Uint8List?>(future: bytes, builder: (context, snapshot) {
+      final data = snapshot.data;
+      if (data == null) return Icon(Icons.person, color: gold, size: widget.size * .52);
+      return Image.memory(data, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.person, color: gold, size: widget.size * .52));
+    }),
+  );
+}
 
 class Message extends StatelessWidget {
   const Message({super.key, required this.text, required this.success});
