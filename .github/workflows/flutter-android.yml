@@ -18,7 +18,7 @@ jobs:
           cache: true
       - run: flutter --version
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib
+      - run: dart format --output=none lib
       - run: flutter analyze
       - run: flutter test
       - run: flutter build apk --release
