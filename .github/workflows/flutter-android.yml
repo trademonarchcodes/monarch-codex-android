@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
   flutter:
     runs-on: ubuntu-latest
@@ -34,3 +34,12 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Publish direct APK download on main
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-build-${{ github.run_number }}
+          name: Monarch Codex Android build ${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: false
+          files: build/app/outputs/flutter-apk/app-release.apk
