@@ -44,6 +44,8 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.post('auth/register', data: data)).data as Map);
   Future<Map<String, dynamic>> overview() async =>
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
+  Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
+  Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
   Future<Map<String, dynamic>> transactions() async => Map<String, dynamic>.from((await dio.get('transactions')).data as Map);
   Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
@@ -321,15 +323,8 @@ class _ShellState extends State<Shell> {
       tile('Email support', 'support@monarchcodex.online', Icons.email_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online'))),
       tile('Open website', 'Visit Monarch Codex online.', Icons.open_in_new, dark, () => openSite('/')),
     ]);
-    if (p == 'KYC Verification') return ListView(padding: const EdgeInsets.all(15), children: [
-      featurePage(p, 'Protect your account', Icons.verified_user_outlined, 'Current status: ' + (data?['kycStatus'] ?? 'not_submitted').toString().toUpperCase() + '. Approval is required before restricted financial actions.', dark),
-      tile('Continue on secure website', 'Open the existing verification workflow.', Icons.open_in_new, dark, () => openSite('/kyc')),
-    ]);
-    if (p == 'Referrals') return ListView(padding: const EdgeInsets.all(15), children: [
-      featurePage(p, 'Invite people to join', Icons.share_outlined, 'Recorded referrals: ' + (data?['referralCount'] ?? 0).toString(), dark),
-      SelectableText((data?['referralLink'] ?? (site + '/register?ref=' + (widget.member['uid'] ?? ''))).toString(), style: const TextStyle(color: gold, fontWeight: FontWeight.w800)),
-      tile('Open referral dashboard', 'View your full referral details.', Icons.open_in_new, dark, () => openSite('/referrals')),
-    ]);
+    if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
+    if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
     return featurePage(p, 'Monarch Codex', Icons.auto_awesome, 'This section will connect to your existing account backend. Existing records are not changed.', dark);
   }
 
