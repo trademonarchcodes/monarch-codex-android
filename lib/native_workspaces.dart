@@ -556,7 +556,7 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
             final matches=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category);
             final existing=matches.isEmpty?null:matches.first;
             final current=levels[k]??(existing?['level']??'red').toString();
-            actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']));
+            actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']).toSet());
             return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
               Row(children:[Expanded(child:Text(category.replaceAll('_',' '),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:12))),SizedBox(width:125,child:DropdownButtonFormField<String>(value:current,decoration:const InputDecoration(isDense:true,contentPadding:EdgeInsets.symmetric(horizontal:8,vertical:8)),items:const [DropdownMenuItem(value:'green',child:Text('Green · Full')),DropdownMenuItem(value:'gold',child:Text('Gold · Partial')),DropdownMenuItem(value:'red',child:Text('Red · None'))],onChanged:(v){if(v!=null)setState(()=>levels[k]=v);}))]),
               if(current=='gold')
