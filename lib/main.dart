@@ -318,6 +318,8 @@ class _ShellState extends State<Shell> {
   Widget sidebar(bool dark) => Material(color: dark ? const Color(0xFF121214) : Colors.white, child: SafeArea(child: Column(children: [
     const SizedBox(height: 10), SvgPicture.asset('assets/images/monarch-codex-logo.svg', width: 112, height: 90),
     Padding(padding: const EdgeInsets.all(11), child: Container(width: double.infinity, padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: dark ? const Color(0xFF211C0D) : const Color(0xFFFFF7DA), borderRadius: BorderRadius.circular(13), border: Border.all(color: const Color(0xFF6D5920))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Center(child: avatar(data?['member'] is Map ? Map<String, dynamic>.from(data!['member'] as Map) : widget.member, 48, 16)),
+      const SizedBox(height: 8),
       Text((widget.member['fullName'] ?? 'Monarch Member').toString(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
       const SizedBox(height: 4), Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 11, fontWeight: FontWeight.w900)),
     ]))),
