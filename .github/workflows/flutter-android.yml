@@ -17,6 +17,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter --version
+      # Generate the standard Android platform files missing from the source repository.
+      - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
       - run: flutter pub get
       - run: dart format --output=none lib
       - run: flutter analyze
