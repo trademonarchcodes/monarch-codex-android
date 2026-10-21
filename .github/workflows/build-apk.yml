@@ -31,6 +31,23 @@ jobs:
       - name: Set Android display name
         run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
 
+      - name: Ensure internet permission is present in release manifest
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path("android/app/src/main/AndroidManifest.xml")
+          manifest = path.read_text()
+          permission = '<uses-permission android:name="android.permission.INTERNET" />'
+          if permission not in manifest:
+              manifest, count = re.subn(r'(<manifest\\b[^>]*>)', r'\\1\\n    ' + permission, manifest, count=1)
+              if count != 1:
+                  raise SystemExit("Could not safely insert INTERNET permission into AndroidManifest.xml")
+              path.write_text(manifest)
+          if permission not in path.read_text():
+              raise SystemExit("INTERNET permission is missing from AndroidManifest.xml")
+          PY
+
       - name: Apply official Monarch Codex launcher icon
         shell: bash
         run: |
@@ -72,6 +89,13 @@ jobs:
 
       - name: Build release APK
         run: flutter build apk --release
+
+      - name: Verify release APK has internet permission
+        run: |
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -n "$AAPT"
+          "$AAPT" dump permissions build/app/outputs/flutter-apk/app-release.apk | tee /tmp/monarch-apk-permissions.txt
+          grep -q "android.permission.INTERNET" /tmp/monarch-apk-permissions.txt
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
