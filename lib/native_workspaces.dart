@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:monarch_codex/main.dart';
 
 String _workspaceError(Object error) {
@@ -73,7 +74,7 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
  final d=snap.data??{};final roles=List<Map<String,dynamic>>.from((d['roles'] as List? ??[]).map((x)=>Map<String,dynamic>.from(x as Map)));final requests=List<Map<String,dynamic>>.from((d['requests'] as List? ??[]).map((x)=>Map<String,dynamic>.from(x as Map)));final members=List<Map<String,dynamic>>.from((d['members'] as List? ??[]).map((x)=>Map<String,dynamic>.from(x as Map)));final assignments=List<Map<String,dynamic>>.from((d['assignments'] as List? ??[]).map((x)=>Map<String,dynamic>.from(x as Map)));final dark=widget.dark;
  return ListView(padding:const EdgeInsets.all(15),children:[
  if(error!=null)Message(text:error!,success:false),if(notice!=null)Message(text:notice!,success:true),
- Container(padding:const EdgeInsets.all(16),decoration:card(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ADD ROLE OPTION',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:10),TextField(controller:roleName,decoration:const InputDecoration(labelText:'Role name')),const SizedBox(height:10),TextField(controller:roleDescription,maxLines:2,decoration:const InputDecoration(labelText:'Description')),const SizedBox(height:12),FilledButton(onPressed:saving?null:()=>save(),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(saving?'Saving…':'Add role'))])),
+ Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ADD ROLE OPTION',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:10),TextField(controller:roleName,decoration:const InputDecoration(labelText:'Role name')),const SizedBox(height:10),TextField(controller:roleDescription,maxLines:2,decoration:const InputDecoration(labelText:'Description')),const SizedBox(height:12),FilledButton(onPressed:saving?null:()=>save(),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(saving?'Saving…':'Add role'))])),
  const SizedBox(height:14),Text('ROLE CATALOGUE ('+roles.length.toString()+')',style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:8),
  ...roles.map((r)=>_roleCard(r,dark)),
  const SizedBox(height:14),Text('PENDING REQUESTS ('+requests.length.toString()+')',style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:8),
