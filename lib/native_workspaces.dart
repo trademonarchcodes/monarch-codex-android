@@ -34,13 +34,14 @@ class _AdminShellState extends State<AdminShell>{
   late Future<Map<String,dynamic>> data;
   int selected=0;
   bool drawerBusy=false;
+  final GlobalKey<ScaffoldState> scaffoldKey=GlobalKey<ScaffoldState>();
   @override void initState(){super.initState();data=widget.api.adminOverview();}
   void reload()=>setState(()=>data=widget.api.adminOverview());
 
   Future<void> openSection(int index) async {
-    if(index==0){if(Navigator.of(context).canPop())Navigator.of(context).pop();setState(()=>selected=0);reload();return;}
-    if(index==4){if(Navigator.of(context).canPop())Navigator.of(context).pop();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
-    if(Navigator.of(context).canPop())Navigator.of(context).pop();
+    if(index==0){scaffoldKey.currentState?.closeDrawer();setState(()=>selected=0);reload();return;}
+    if(index==4){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
+    scaffoldKey.currentState?.closeDrawer();
     setState(()=>selected=index);
     final dark=Theme.of(context).brightness==Brightness.dark;
     Widget? page;
@@ -71,6 +72,7 @@ class _AdminShellState extends State<AdminShell>{
   @override Widget build(BuildContext context){
     final dark=Theme.of(context).brightness==Brightness.dark;
     return Scaffold(
+      key:scaffoldKey,
       drawer:Drawer(
         backgroundColor:dark?const Color(0xFF10110F):const Color(0xFFF6F4ED),
         width:MediaQuery.of(context).size.width*0.82,
@@ -96,7 +98,7 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(8,Icons.settings_outlined,'Settings'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
-          ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){Navigator.of(context).pop();widget.toggleTheme();}),
+          ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
           ListTile(leading:const Icon(Icons.logout,color:Color(0xFFD8A29A)),title:const Text('Sign out',style:TextStyle(color:Color(0xFFD8A29A),fontSize:12)),onTap:widget.signOut),
           const SizedBox(height:8),
         ])),
