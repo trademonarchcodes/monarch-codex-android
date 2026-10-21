@@ -72,6 +72,22 @@ class MonarchApi {
     if(mime.isEmpty) throw Exception('Choose a JPG, PNG or WebP image.');
     return Map<String,dynamic>.from((await dio.post('profile/photo',data:{'mimeType':mime,'imageBase64':base64Encode(bytes)})).data as Map);
   }
+  Future<Map<String,dynamic>> notifications() async => Map<String,dynamic>.from((await dio.get('notifications')).data as Map);
+  Future<void> markNotificationRead(int id) async { await dio.post('notifications/$id/read'); }
+  Future<void> markAllNotificationsRead() async { await dio.post('notifications/read-all'); }
+  Future<Map<String,dynamic>> communityPosts() async => Map<String,dynamic>.from((await dio.get('community/posts')).data as Map);
+  Future<Map<String,dynamic>> createCommunityPost(String body) async => Map<String,dynamic>.from((await dio.post('community/posts',data:{'body':body,'type':'post'})).data as Map);
+  Future<Map<String,dynamic>> communityComments(int postId) async => Map<String,dynamic>.from((await dio.get('community/posts/$postId/comments')).data as Map);
+  Future<Map<String,dynamic>> createCommunityComment(int postId,String body) async => Map<String,dynamic>.from((await dio.post('community/posts/$postId/comments',data:{'body':body})).data as Map);
+  Future<Map<String,dynamic>> cooperativeStatus() async => Map<String,dynamic>.from((await dio.get('cooperative/status')).data as Map);
+  Future<Map<String,dynamic>> submitCooperativeConnection({required String registeredName,required String registeredEmail}) async => Map<String,dynamic>.from((await dio.post('cooperative/connections',data:{'registeredName':registeredName,'registeredEmail':registeredEmail})).data as Map);
+  Future<Map<String,dynamic>> socialLinks() async => Map<String,dynamic>.from((await dio.get('social-links')).data as Map);
+  Future<Map<String,dynamic>> adminCooperativeConnections() async => Map<String,dynamic>.from((await dio.get('admin/cooperative/connections')).data as Map);
+  Future<Map<String,dynamic>> reviewCooperativeConnection({required int id,required String decision,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/cooperative/connections/$id/review',data:{'decision':decision,'note':note})).data as Map);
+  Future<Map<String,dynamic>> adminSocialLinks() async => Map<String,dynamic>.from((await dio.get('admin/social-links')).data as Map);
+  Future<Map<String,dynamic>> saveAdminSocialLink({required String key,required String label,required String url,required bool active}) async => Map<String,dynamic>.from((await dio.post('admin/social-links',data:{'key':key,'label':label,'url':url,'active':active})).data as Map);
+  Future<Map<String,dynamic>> adminPermissions() async => Map<String,dynamic>.from((await dio.get('admin/permissions')).data as Map);
+  Future<Map<String,dynamic>> saveAdminPermission({required int adminMemberId,required String category,required String level,required List<String> allowedActions}) async => Map<String,dynamic>.from((await dio.post('admin/permissions',data:{'adminMemberId':adminMemberId,'category':category,'level':level,'allowedActions':allowedActions})).data as Map);
   Future<Map<String,dynamic>> roles() async => Map<String,dynamic>.from((await dio.get('roles')).data as Map);
   Future<Map<String,dynamic>> requestRole({required int roleId,required String message}) async => Map<String,dynamic>.from((await dio.post('roles/request',data:{'roleId':roleId,'message':message})).data as Map);
   Future<Map<String,dynamic>> adminRoles() async => Map<String,dynamic>.from((await dio.get('admin/roles')).data as Map);
@@ -217,6 +233,108 @@ class _AuthPageState extends State<AuthPage> {
   String? requiredField(String? value) => value == null || value.trim().isEmpty ? 'This field is required' : null;
 }
 
+class SocialLinksPage extends StatefulWidget {
+  const SocialLinksPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<SocialLinksPage> createState()=>_SocialLinksPageState();
+}
+class _SocialLinksPageState extends State<SocialLinksPage>{
+  late Future<Map<String,dynamic>> future;String? error;
+  @override void initState(){super.initState();future=widget.api.socialLinks();}
+  void reload()=>setState(()=>future=widget.api.socialLinks());
+  Future<void> open(String raw)async{final uri=Uri.tryParse(raw);if(uri==null||uri.scheme!='https'||uri.host.isEmpty){setState(()=>error='This link is not a valid secure HTTPS address.');return;}try{final ok=await launchUrl(uri,mode:LaunchMode.externalApplication);if(!ok&&mounted)setState(()=>error='Could not open this link. Please try again.');}catch(_){if(mounted)setState(()=>error='Could not open this link. Please try again.');}}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(20),children:[const Text('Official social links are unavailable right now.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('OFFICIAL MONARCH CODEX CHANNELS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Open verified official links. Links open outside the app using a secure HTTPS address.',style:TextStyle(color:muted)),
+      if(error!=null)Padding(padding:const EdgeInsets.all(8),child:Text(error!,style:const TextStyle(color:Colors.redAccent))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No official social links have been published yet.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
+      ...items.map((x)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:const Icon(Icons.public,color:gold),title:Text((x['label']??'Official channel').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text((x['url']??'').toString(),maxLines:2,overflow:TextOverflow.ellipsis),trailing:const Icon(Icons.open_in_new,color:gold),onTap:()=>open((x['url']??'').toString())))),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh official links'))
+    ]);
+  });
+}
+
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<NotificationsPage> createState()=>_NotificationsPageState();
+}
+class _NotificationsPageState extends State<NotificationsPage>{
+  late Future<Map<String,dynamic>> future; bool busy=false; String? error;
+  @override void initState(){super.initState();future=widget.api.notifications();}
+  void reload(){setState(()=>future=widget.api.notifications());}
+  Future<void> markAll() async {setState(()=>busy=true);try{await widget.api.markAllNotificationsRead();if(mounted){setState(()=>busy=false);reload();}}catch(e){if(mounted)setState(() { busy=false; error='Could not update notifications. Please try again.'; });}}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+    if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
+    if(snapshot.hasError)return ListView(padding:const EdgeInsets.all(20),children:[const Text('Notifications are temporarily unavailable.'),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Try again'))]);
+    final data=snapshot.data??{};final items=(data['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return RefreshIndicator(color:gold,onRefresh:()async=>reload(),child:ListView(padding:const EdgeInsets.all(15),children:[
+      Row(children:[const Expanded(child:Text('IMPORTANT UPDATES',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1))),Text('${data['unreadCount']??0} unread'),const SizedBox(width:8),IconButton(onPressed:busy?null:markAll,tooltip:'Mark all as read',icon:const Icon(Icons.done_all,color:gold))]),
+      if(error!=null)Padding(padding:const EdgeInsets.all(8),child:Text(error!,style:const TextStyle(color:Colors.redAccent))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:32),child:Column(children:[Icon(Icons.notifications_none,size:44,color:muted),SizedBox(height:10),Text('You are all caught up.'),SizedBox(height:4),Text('Important account and review updates will appear here.',style:TextStyle(color:muted),textAlign:TextAlign.center)])),
+      ...items.map((item){final read=item['readAt']!=null;final id=(item['id'] as num?)?.toInt();return Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:Icon(read?Icons.notifications_none:Icons.notifications_active,color:read?muted:gold),title:Text((item['title']??'Account update').toString(),style:TextStyle(fontWeight:read?FontWeight.w500:FontWeight.w800)),subtitle:Padding(padding:const EdgeInsets.only(top:6),child:Text((item['body']??'').toString()+'\n'+(item['createdAt']??'').toString())),isThreeLine:true,trailing:read?null:IconButton(icon:const Icon(Icons.done,color:gold),tooltip:'Mark as read',onPressed:id==null?null:()async{try{await widget.api.markNotificationRead(id);if(mounted)reload();}catch(_){if(mounted)setState(()=>error='Could not mark this notification as read.');}})));}),
+    ]));
+  });
+}
+
+class CommunityPage extends StatefulWidget {
+  const CommunityPage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<CommunityPage> createState()=>_CommunityPageState();
+}
+class _CommunityPageState extends State<CommunityPage>{
+  final composer=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
+  @override void initState(){super.initState();future=widget.api.communityPosts();}
+  void reload()=>setState(()=>future=widget.api.communityPosts());
+  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState(() { sending=true; message=null; });try{final r=await widget.api.createCommunityPost(body);composer.clear();if(mounted)setState(() { sending=false; message=(r['message']??'Post published.').toString(); success=true; });reload();}catch(e){if(mounted)setState(() { sending=false; message='Could not publish your post. Please try again.'; success=false; });}}
+  @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
+    const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+    const SizedBox(height:5),const Text('Share an update, ask a question, and connect with members.',style:TextStyle(color:muted)),
+    const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+      TextField(controller:composer,maxLines:4,maxLength:5000,decoration:const InputDecoration(hintText:'What would you like to share?',border:OutlineInputBorder())),
+      const SizedBox(height:8),Row(children:[if(message!=null)Expanded(child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent,fontSize:12))),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))])
+    ]))),
+    const SizedBox(height:14),Row(children:[const Expanded(child:Text('COMMUNITY FEED',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));if(snapshot.hasError)return const Padding(padding:EdgeInsets.all(12),child:Text('The community feed is not available yet. Please try again later.',style:TextStyle(color:muted)));final posts=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(posts.isEmpty)return const Padding(padding:EdgeInsets.all(22),child:Text('No posts yet. Be the first to start a conversation.',textAlign:TextAlign.center,style:TextStyle(color:muted)));return Column(children:posts.map((p)=>Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800)),const SizedBox(height:7),Text((p['body']??'').toString()),const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))])))).toList());})
+  ]);
+}
+
+class OnlineCooperativePage extends StatefulWidget {
+  const OnlineCooperativePage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<OnlineCooperativePage> createState()=>_OnlineCooperativePageState();
+}
+class _OnlineCooperativePageState extends State<OnlineCooperativePage>{
+  final name=TextEditingController(),email=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
+  @override void initState(){super.initState();future=widget.api.cooperativeStatus();}
+  void reload()=>setState(()=>future=widget.api.cooperativeStatus());
+  Future<void> register()async{setState(()=>sending=true);try{await widget.api.submitCooperativeConnection(registeredName:name.text.trim(),registeredEmail:email.text.trim());if(mounted){setState(() { sending=false; message='Submitted for manual verification. You will be notified after review.'; success=true; });name.clear();email.clear();reload();}}catch(e){if(mounted)setState(() { sending=false; message='Could not submit these details. Check them and try again.'; success=false; });}}
+  Future<void> openRegistration()async{final uri=Uri.parse('https://airdrop.myturntech.com/register?ref=53');if(!await launchUrl(uri,mode:LaunchMode.externalApplication)&&mounted)setState(()=>message='Could not open the registration page. Please try again.');}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+    final items=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    final connected=items.any((x)=>x['status']=='approved');final pending=items.any((x)=>x['status']=='pending');
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('ONLINE COOPERATIVE',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Register with our referral link, then submit the same name and email for manual verification. We will not ask for your password or OTP.',style:TextStyle(color:muted)),
+      const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[Icon(connected?Icons.verified:pending?Icons.hourglass_top:Icons.link,color:gold),const SizedBox(width:8),Expanded(child:Text(connected?'CONNECTED TO MONARCH CODEX':pending?'VERIFICATION PENDING':'NOT CONNECTED',style:const TextStyle(fontWeight:FontWeight.w900,fontSize:12)))]),
+        const SizedBox(height:12),FilledButton.icon(onPressed:openRegistration,icon:const Icon(Icons.open_in_new),label:const Text('Register with Online Cooperative')),
+        const SizedBox(height:16),TextField(controller:name,decoration:const InputDecoration(labelText:'Name used to register',border:OutlineInputBorder())),
+        const SizedBox(height:10),TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Registration email',border:OutlineInputBorder())),
+        const SizedBox(height:12),if(message!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent))),
+        FilledButton(onPressed:sending||connected||pending?null:register,child:Text(sending?'Submitting…':pending?'Awaiting verification':connected?'Account connected':'Submit for verification')),
+      ]))),
+      if(snapshot.hasError)const Padding(padding:EdgeInsets.all(10),child:Text('Connection status could not be loaded. Check your connection and refresh.',style:TextStyle(color:muted))),
+      if(items.isNotEmpty) ...items.map((x)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:Icon(x['status']=='approved'?Icons.check_circle:x['status']=='pending'?Icons.hourglass_top:Icons.info_outline,color:gold),title:Text((x['status']??'').toString().toUpperCase()),subtitle:Text('Submitted: ${x['createdAt']??'—'}${x['reviewNote']==null?'':'\nReason: ${x['reviewNote']}'}')))),
+      const SizedBox(height:10),OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh connection status')),
+    ]);
+  });
+}
+
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
   final MonarchApi api;
@@ -256,7 +374,7 @@ class _ShellState extends State<Shell> {
           ])),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
-        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
+        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
@@ -295,6 +413,8 @@ class _ShellState extends State<Shell> {
         quick('Community', Icons.groups_outlined, () => page(null, 4), dark),
         quick('Verify KYC', Icons.shield_outlined, () => page('KYC Verification'), dark),
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
+        quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
+        quick('Social Links', Icons.public, () => page('Social Links'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -323,11 +443,7 @@ class _ShellState extends State<Shell> {
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
-    if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [
-      featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),
-      tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),
-      tile('Refresh account status', 'Reload your latest overview and unread count.', Icons.refresh, dark, refresh),
-    ]);
+    if (p == 'Notifications') return NotificationsPage(api: widget.api, dark: dark);
     if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
       tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
@@ -340,6 +456,8 @@ class _ShellState extends State<Shell> {
     ]);
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
+    if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
+    if (p == 'Social Links') return SocialLinksPage(api: widget.api, dark: dark);
     return featurePage(p, 'Monarch Codex', Icons.auto_awesome, 'This section will connect to your existing account backend. Existing records are not changed.', dark);
   }
 
@@ -349,7 +467,7 @@ class _ShellState extends State<Shell> {
     child: Row(children: List.generate(names.length, (i) => Expanded(child: InkWell(
       onTap: () => page(null, i), borderRadius: BorderRadius.circular(11),
       child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withOpacity(.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: Icon(icons[i], size: 18, color: tab == i ? gold : muted)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withValues(alpha:.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: Icon(icons[i], size: 18, color: tab == i ? gold : muted)),
         const SizedBox(height: 3), Text(names[i], maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 8.5, fontWeight: tab == i ? FontWeight.w900 : FontWeight.w600, color: tab == i ? gold : muted)),
       ])),
     )))),
@@ -409,14 +527,14 @@ class _ShellState extends State<Shell> {
 
   Widget quick(String label, IconData icon, VoidCallback action, bool dark) => InkWell(onTap: action, borderRadius: BorderRadius.circular(14), child: Container(
     decoration: card(dark), padding: const EdgeInsets.all(8), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Container(width: 37, height: 37, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
+      Container(width: 37, height: 37, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
       const SizedBox(height: 7), Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
     ]),
   ));
 
   Widget featurePage(String title, String subtitle, IconData icon, String body, bool dark) => ListView(padding: const EdgeInsets.all(15), children: [
     Container(padding: const EdgeInsets.all(20), decoration: card(dark), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 50, height: 50, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: gold, size: 27)),
+      Container(width: 50, height: 50, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: gold, size: 27)),
       const SizedBox(height: 15), Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
       const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
       const SizedBox(height: 13), Text(body, style: const TextStyle(color: muted, fontSize: 13, height: 1.6)),
@@ -426,7 +544,7 @@ class _ShellState extends State<Shell> {
   Widget tile(String title, String subtitle, IconData icon, bool dark, VoidCallback action) => Container(
     margin: const EdgeInsets.only(bottom: 10), decoration: card(dark), child: ListTile(
       onTap: action, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
-      leading: Container(width: 39, height: 39, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
+      leading: Container(width: 39, height: 39, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
       title: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
       subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle, style: const TextStyle(color: muted, fontSize: 10, height: 1.4))),
       trailing: const Icon(Icons.chevron_right, color: muted, size: 19),

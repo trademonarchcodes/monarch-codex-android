@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -50,6 +51,9 @@ class _AdminShellState extends State<AdminShell>{
     if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
     if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
     if(index==8){try{await _openAdminRoute('/admin/settings');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open settings: '+e.toString())));}if(mounted)setState(()=>selected=0);return;}
+    if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:(widget.member['id'] as num?)?.toInt()??(widget.member['memberId'] as num?)?.toInt()??-1);
+    if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
+    if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -96,6 +100,9 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(6,Icons.query_stats_outlined,'Analytics'),
             _navItem(7,Icons.shield_outlined,'Security centre'),
             _navItem(8,Icons.settings_outlined,'Settings'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(9,Icons.admin_panel_settings_outlined,'Admin permissions'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -418,9 +425,9 @@ class _DepositPageState extends State<DepositPage>{
       const Text('Make a deposit',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),const SizedBox(height:5),const Text('Submit transfer details and your receipt for administrator review.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:13),
       if(error.isNotEmpty)Message(text:error,success:false),if(success.isNotEmpty)Message(text:success,success:true),
       Form(key:form,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Deposit currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('Nigerian Naira (NGN)')),DropdownMenuItem(value:'USD',child:Text('US Dollar (USD)'))],onChanged:busy?null:(v)=>setState(() { currency=v??'NGN'; methodId=''; })),
+        DropdownButtonFormField<String>(initialValue:currency,decoration:const InputDecoration(labelText:'Deposit currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('Nigerian Naira (NGN)')),DropdownMenuItem(value:'USD',child:Text('US Dollar (USD)'))],onChanged:busy?null:(v)=>setState(() { currency=v??'NGN'; methodId=''; })),
         const SizedBox(height:10),if(methods.isEmpty)const Message(text:'No active payment methods are configured for this currency. Contact support.',success:false),
-        if(methods.isNotEmpty)DropdownButtonFormField<String>(value:methodId,isExpanded:true,decoration:const InputDecoration(labelText:'Payment destination'),items:methods.map((m)=>DropdownMenuItem(value:m['id'].toString(),child:Text((m['label']??m['method_type']??'Payment method').toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>methodId=v??'')),
+        if(methods.isNotEmpty)DropdownButtonFormField<String>(initialValue:methodId,isExpanded:true,decoration:const InputDecoration(labelText:'Payment destination'),items:methods.map((m)=>DropdownMenuItem(value:m['id'].toString(),child:Text((m['label']??m['method_type']??'Payment method').toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>methodId=v??'')),
         if(methods.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(14),border:Border.all(color:const Color(0xFF6D5920))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text((selected['label']??'Payment details').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:7),
           ...['bank_name','account_name','account_number','wallet_network','wallet_asset','wallet_address','instructions'].where((k)=>selected[k]!=null&&selected[k].toString().isNotEmpty).map((k)=>Padding(padding:const EdgeInsets.only(bottom:4),child:Text(k.replaceAll('_',' ').toUpperCase()+': '+selected[k].toString(),style:const TextStyle(fontSize:11,color:muted)))),
@@ -456,13 +463,172 @@ class _WithdrawalPageState extends State<WithdrawalPage>{
       Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(14),border:Border.all(color:const Color(0xFF6D5920))),child:Text('Available NGN: ₦'+number(available['NGN']).toStringAsFixed(2)+'\nAvailable USD: \$'+number(available['USD']).toStringAsFixed(2),style:const TextStyle(color:gold,fontWeight:FontWeight.w900,height:1.6))),
       const SizedBox(height:12),if(accounts.isEmpty)const Message(text:'No saved payout account was found. Add one in your account profile before requesting a withdrawal.',success:false),
       Form(key:form,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('NGN')),DropdownMenuItem(value:'USD',child:Text('USD'))],onChanged:busy?null:(v)=>setState(()=>currency=v??'NGN')),
-        const SizedBox(height:10),if(accounts.isNotEmpty)DropdownButtonFormField<String>(value:bankId,isExpanded:true,decoration:const InputDecoration(labelText:'Saved payout account'),items:accounts.map((a)=>DropdownMenuItem(value:a['id'].toString(),child:Text([a['bankName'],a['accountName'],a['accountNumber'],a['label']].where((v)=>v!=null&&v.toString().isNotEmpty).join(' · '),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>bankId=v??'')),
+        DropdownButtonFormField<String>(initialValue:currency,decoration:const InputDecoration(labelText:'Currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('NGN')),DropdownMenuItem(value:'USD',child:Text('USD'))],onChanged:busy?null:(v)=>setState(()=>currency=v??'NGN')),
+        const SizedBox(height:10),if(accounts.isNotEmpty)DropdownButtonFormField<String>(initialValue:bankId,isExpanded:true,decoration:const InputDecoration(labelText:'Saved payout account'),items:accounts.map((a)=>DropdownMenuItem(value:a['id'].toString(),child:Text([a['bankName'],a['accountName'],a['accountNumber'],a['label']].where((v)=>v!=null&&v.toString().isNotEmpty).join(' · '),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>bankId=v??'')),
         const SizedBox(height:10),TextFormField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Amount'),validator:(v){final n=double.tryParse(v??'');return n==null||n<=0?'Enter a valid amount':n>number(available[currency])?'Amount exceeds available balance':null;}),
         const SizedBox(height:10),TextFormField(controller:note,maxLines:2,decoration:const InputDecoration(labelText:'Note (optional)')),
         const SizedBox(height:12),FilledButton(onPressed:busy||accounts.isEmpty?null:submit,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:Colors.black,minimumSize:const Size.fromHeight(50)),child:busy?const CircularProgressIndicator(color:Colors.black):const Text('SUBMIT WITHDRAWAL REQUEST',style:TextStyle(fontWeight:FontWeight.w900))),
         const SizedBox(height:8),const Text('Pending and approved requests reserve funds. Wallet funds are debited only after an administrator verifies the actual payout.',style:TextStyle(color:muted,fontSize:11,height:1.4)),
       ])),
+    ]);
+  });
+}
+
+
+class AdminCooperativePage extends StatefulWidget {
+  const AdminCooperativePage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<AdminCooperativePage> createState()=>_AdminCooperativePageState();
+}
+class _AdminCooperativePageState extends State<AdminCooperativePage>{
+  late Future<Map<String,dynamic>> future;final Map<int,TextEditingController> notes={};final Set<int> busy={};String? message;
+  @override void initState(){super.initState();future=widget.api.adminCooperativeConnections();}
+  void reload()=>setState(()=>future=widget.api.adminCooperativeConnections());
+  Future<void> review(int id,String decision)async{
+    final note=notes.putIfAbsent(id,()=>TextEditingController()).text.trim();
+    if(decision=='reject'&&note.isEmpty){setState(()=>message='Add a rejection reason before rejecting a connection.');return;}
+    setState(() { busy.add(id); message=null; });
+    try{await widget.api.reviewCooperativeConnection(id:id,decision:decision,note:note);if(mounted){setState(()=>message='Connection request '+(decision=='approve'?'approved.':'rejected.'));reload();}}
+    catch(e){if(mounted)setState(()=>message='Could not review the request. Please retry.');}
+    finally{if(mounted)setState(()=>busy.remove(id));}
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Cooperative verification queue unavailable.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('ONLINE COOPERATIVE VERIFICATION',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Contact the Cooperative administrator and confirm the submitted name/email before approving. Keep uncertain requests pending.',style:TextStyle(color:muted)),
+      if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No pending connection requests.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
+      ...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController());return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((x['memberName']??'Member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        const SizedBox(height:4),Text('Member email: ${x['memberEmail']??'—'}'),
+        Text('Registered name: ${x['registeredName']??'—'}'),Text('Registered email: ${x['registeredEmail']??'—'}'),
+        Text('Submitted: ${x['createdAt']??'—'}',style:const TextStyle(color:muted,fontSize:10)),
+        const SizedBox(height:10),TextField(controller:note,maxLines:2,decoration:const InputDecoration(labelText:'Review note (required for rejection)',border:OutlineInputBorder())),
+        const SizedBox(height:10),Row(children:[Expanded(child:OutlinedButton(onPressed:busy.contains(id)?null:()=>review(id,'reject'),child:const Text('Reject'))),const SizedBox(width:8),Expanded(child:FilledButton(onPressed:busy.contains(id)?null:()=>review(id,'approve'),child:const Text('Approve')))])
+      ])));}),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh queue')),
+    ]);
+  });
+}
+
+class AdminPermissionsPage extends StatefulWidget {
+  const AdminPermissionsPage({super.key,required this.api,required this.dark,required this.currentMemberId});
+  final MonarchApi api; final bool dark; final int currentMemberId;
+  @override State<AdminPermissionsPage> createState()=>_AdminPermissionsPageState();
+}
+class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
+  late Future<Map<String,dynamic>> future;final Map<String,String> levels={};final Map<String,Set<String>> actions={};final Set<String> saving={};String? message;
+  static const actionOptions=['view','create','edit','approve','reject','publish','moderate','delete','export','manage'];
+  @override void initState(){super.initState();future=widget.api.adminPermissions();}
+  void reload()=>setState(()=>future=widget.api.adminPermissions());
+  String key(int memberId,String category)=>'$memberId:$category';
+  List<String> readActions(dynamic raw){try{final value=raw is String?jsonDecode(raw):raw;if(value is List)return value.map((x)=>x.toString()).toList();}catch(_){}return <String>[];}
+  Future<void> save(int memberId,String category)async{
+    final k=key(memberId,category),level=levels[k]??'red';
+    if(memberId==widget.currentMemberId){setState(()=>message='You cannot change your own permissions.');return;}
+    if(level=='gold'&&(actions[k]==null||actions[k]!.isEmpty)){setState(()=>message='Gold access requires at least one selected action.');return;}
+    setState(() { saving.add(k); message=null; });
+    try{await widget.api.saveAdminPermission(adminMemberId:memberId,category:category,level:level,allowedActions:(actions[k]??<String>{}).toList());if(mounted)setState(()=>message='Permission saved for '+category.replaceAll('_',' ')+'.');}
+    catch(e){if(mounted)setState(()=>message='Could not save permission. Confirm you are signed in as Super Admin.');}
+    finally{if(mounted)setState(()=>saving.remove(k));}
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Permission controls require Super Admin access and the platform migration.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final data=s.data??{};final admins=(data['admins'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    final categories=(data['categories'] as List? ?? const []).map((x)=>x.toString()).toList();
+    final permissions=(data['permissions'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('ADMIN CONTROL & PERMISSIONS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Green = full category access. Gold = only the selected actions. Red = no category access. Only the Super Admin can change these controls.',style:TextStyle(color:muted)),
+      if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
+      ...admins.where((a)=>(a['role']??'').toString()!='super_admin').map((admin){
+        final memberId=(admin['memberId'] as num).toInt();
+        return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text((admin['fullName']??admin['email']??'Administrator').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+          Text((admin['role']??'').toString().replaceAll('_',' ').toUpperCase(),style:const TextStyle(color:muted,fontSize:10)),
+          const SizedBox(height:8),
+          ...categories.map((category){
+            final k=key(memberId,category);
+            final matches=permissions.where((p)=>(p['adminMemberId'] as num?)?.toInt()==memberId&&p['category']==category);
+            final existing=matches.isEmpty?null:matches.first;
+            final current=levels[k]??(existing?['level']??'red').toString();
+            actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']).toSet());
+            return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Row(children:[Expanded(child:Text(category.replaceAll('_',' '),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:12))),SizedBox(width:125,child:DropdownButtonFormField<String>(initialValue:current,decoration:const InputDecoration(isDense:true,contentPadding:EdgeInsets.symmetric(horizontal:8,vertical:8)),items:const [DropdownMenuItem(value:'green',child:Text('Green · Full')),DropdownMenuItem(value:'gold',child:Text('Gold · Partial')),DropdownMenuItem(value:'red',child:Text('Red · None'))],onChanged:(v){if(v!=null)setState(()=>levels[k]=v);}))]),
+              if(current=='gold')
+                Wrap(
+                  spacing:4,
+                  runSpacing:0,
+                  children:actionOptions.map((action) {
+                    return FilterChip(
+                      label:Text(action,style:const TextStyle(fontSize:10)),
+                      selected:actions[k]!.contains(action),
+                      onSelected:(selected) {
+                        setState(() {
+                          if(selected) {
+                            actions[k]!.add(action);
+                          } else {
+                            actions[k]!.remove(action);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              Align(alignment:Alignment.centerRight,child:TextButton(onPressed:saving.contains(k)?null:()=>save(memberId,category),child:Text(saving.contains(k)?'Saving…':'Save permission')))
+            ]));
+          })
+        ])));
+      }),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh permissions')),
+    ]);
+  });
+}
+
+
+class AdminSocialLinksPage extends StatefulWidget {
+  const AdminSocialLinksPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<AdminSocialLinksPage> createState()=>_AdminSocialLinksPageState();
+}
+class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
+  late Future<Map<String,dynamic>> future;final Map<String,TextEditingController> urls={};final Map<String,TextEditingController> labels={};final Map<String,bool> active={};final Set<String> saving={};String? message;
+  @override void initState(){super.initState();future=widget.api.adminSocialLinks();}
+  void reload()=>setState(()=>future=widget.api.adminSocialLinks());
+  Future<void> save(String key)async{
+    final url=urls[key]?.text.trim()??'',label=labels[key]?.text.trim()??key;
+    if(active[key]==true&&url.isEmpty){setState(()=>message='An active social link must have an HTTPS URL.');return;}
+    if(url.isNotEmpty){final uri=Uri.tryParse(url);if(uri==null||uri.scheme!='https'||uri.host.isEmpty){setState(()=>message='Use a valid HTTPS URL for '+label+'.');return;}}
+    setState(() {saving.add(key);message=null;});
+    try{await widget.api.saveAdminSocialLink(key:key,label:label,url:url,active:active[key]??false);if(mounted)setState(()=>message=label+' saved.');}
+    catch(e){if(mounted)setState(()=>message='Could not save '+label+'. Confirm Super Admin access and try again.');}
+    finally{if(mounted)setState(()=>saving.remove(key));}
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Social link management requires Super Admin access and the platform migration.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Only HTTPS links are accepted. Empty platforms stay hidden from members; never enter personal links here unless explicitly intended to be public.',style:TextStyle(color:muted)),
+      if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
+      ...items.map((item){
+        final key=(item['key_name']??'other').toString();
+        labels.putIfAbsent(key,()=>TextEditingController(text:(item['label']??key).toString()));
+        urls.putIfAbsent(key,()=>TextEditingController(text:(item['url']??'').toString()));
+        active.putIfAbsent(key,()=>item['active']==true||item['active']==1);
+        return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),Switch(value:active[key]!,activeThumbColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
+          TextField(controller:labels[key],decoration:const InputDecoration(labelText:'Public label',border:OutlineInputBorder())),
+          const SizedBox(height:8),TextField(controller:urls[key],keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'HTTPS URL (blank hides the link)',border:OutlineInputBorder())),
+          Align(alignment:Alignment.centerRight,child:FilledButton(onPressed:saving.contains(key)?null:()=>save(key),child:Text(saving.contains(key)?'Saving…':'Save')))
+        ])));
+      }),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Reload links'))
     ]);
   });
 }
