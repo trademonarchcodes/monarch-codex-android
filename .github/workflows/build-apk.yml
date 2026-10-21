@@ -28,6 +28,35 @@ jobs:
       - name: Generate Android platform project
         run: flutter create --platforms=android --org online.monarchcodex --project-name monarch_codex .
 
+      - name: Set Android compile SDK to 36 for receipt picker
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          candidates = [Path("android/app/build.gradle.kts"), Path("android/app/build.gradle")]
+          build_file = next((p for p in candidates if p.exists()), None)
+          if build_file is None:
+              raise SystemExit("Android app Gradle file was not generated")
+          source = build_file.read_text()
+          patterns = [
+              (r"compileSdk\\s*=\\s*flutter\\.compileSdkVersion", "compileSdk = 36"),
+              (r"compileSdkVersion\\s+flutter\\.compileSdkVersion", "compileSdkVersion 36"),
+              (r"compileSdk\\s*=\\s*\\d+", "compileSdk = 36"),
+              (r"compileSdkVersion\\s+\\d+", "compileSdkVersion 36"),
+          ]
+          updated = source
+          for pattern, replacement in patterns:
+              updated, count = re.subn(pattern, replacement, updated, count=1)
+              if count:
+                  break
+          if updated == source:
+              raise SystemExit("Could not safely update compileSdk in " + str(build_file))
+          build_file.write_text(updated)
+          if not re.search(r"compileSdk(?:Version)?\\s*(?:=\\s*)?36", updated):
+              raise SystemExit("compileSdk 36 verification failed")
+          print("Set compile SDK to 36 in", build_file)
+          PY
+
       - name: Set Android display name
         run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
 
