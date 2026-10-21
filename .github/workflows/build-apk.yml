@@ -69,14 +69,30 @@ jobs:
               if root_file.suffix == ".kts":
                   block = '''
           // MONARCH_CODEX_COMPILE_SDK_OVERRIDE
+          // Apply when Android plugins are applied, before their projects are evaluated.
+          // afterEvaluate is too late here because Flutter may already have evaluated plugins.
           subprojects {
-              afterEvaluate {
-                  extensions.findByName("android")?.let { androidExt ->
+              plugins.withId("com.android.library") {
+                  def androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
                       try {
-                          val setter = androidExt.javaClass.methods.firstOrNull { it.name == "setCompileSdkVersion" && it.parameterCount == 1 }
+                          def setter = androidExt.class.methods.find { it.name == "setCompileSdkVersion" && it.parameterCount == 1 }
                           setter?.invoke(androidExt, 36)
-                      } catch (ignored: Exception) {
-                          logger.warn("Could not override compileSdk for $project")
+                          logger.lifecycle("Monarch Codex: compileSdk 36 applied to " + project.path)
+                      } catch (Exception ignored) {
+                          logger.warn("Monarch Codex: could not override compileSdk for " + project.path)
+                      }
+                  }
+              }
+              plugins.withId("com.android.application") {
+                  def androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
+                      try {
+                          def setter = androidExt.class.methods.find { it.name == "setCompileSdkVersion" && it.parameterCount == 1 }
+                          setter?.invoke(androidExt, 36)
+                          logger.lifecycle("Monarch Codex: compileSdk 36 applied to " + project.path)
+                      } catch (Exception ignored) {
+                          logger.warn("Monarch Codex: could not override compileSdk for " + project.path)
                       }
                   }
               }
@@ -86,15 +102,18 @@ jobs:
                   block = '''
           // MONARCH_CODEX_COMPILE_SDK_OVERRIDE
           subprojects {
-              afterEvaluate { subproject ->
-                  def androidExt = subproject.extensions.findByName("android")
+              plugins.withId("com.android.library") {
+                  def androidExt = extensions.findByName("android")
                   if (androidExt != null) {
-                      try {
-                          androidExt.compileSdkVersion(36)
-                          logger.lifecycle("Monarch Codex: compileSdk 36 applied to " + subproject.path)
-                      } catch (Exception ignored) {
-                          logger.warn("Monarch Codex: could not override compileSdk for " + subproject.path)
-                      }
+                      androidExt.compileSdkVersion(36)
+                      logger.lifecycle("Monarch Codex: compileSdk 36 applied to " + project.path)
+                  }
+              }
+              plugins.withId("com.android.application") {
+                  def androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
+                      androidExt.compileSdkVersion(36)
+                      logger.lifecycle("Monarch Codex: compileSdk 36 applied to " + project.path)
                   }
               }
           }
