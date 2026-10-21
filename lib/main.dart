@@ -240,7 +240,7 @@ class _NotificationsPageState extends State<NotificationsPage>{
   late Future<Map<String,dynamic>> future; bool busy=false; String? error;
   @override void initState(){super.initState();future=widget.api.notifications();}
   void reload(){setState(()=>future=widget.api.notifications());}
-  Future<void> markAll() async {setState(()=>busy=true);try{await widget.api.markAllNotificationsRead();if(mounted){setState(()=>busy=false);reload();}}catch(e){if(mounted)setState(()=>{busy=false,error:'Could not update notifications. Please try again.'});}}
+  Future<void> markAll() async {setState(()=>busy=true);try{await widget.api.markAllNotificationsRead();if(mounted){setState(()=>busy=false);reload();}}catch(e){if(mounted)setState(() { busy=false; error='Could not update notifications. Please try again.'; });}}
   @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
     if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
     if(snapshot.hasError)return ListView(padding:const EdgeInsets.all(20),children:[const Text('Notifications are temporarily unavailable.'),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Try again'))]);
@@ -263,7 +263,7 @@ class _CommunityPageState extends State<CommunityPage>{
   final composer=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
   @override void initState(){super.initState();future=widget.api.communityPosts();}
   void reload()=>setState(()=>future=widget.api.communityPosts());
-  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState(()=>{sending=true,message=null});try{final r=await widget.api.createCommunityPost(body);composer.clear();if(mounted)setState(()=>{sending=false,message:(r['message']??'Post published.').toString(),success:true});reload();}catch(e){if(mounted)setState(()=>{sending=false,message:'Could not publish your post. Please try again.',success:false});}}
+  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState(() { sending=true; message=null; });try{final r=await widget.api.createCommunityPost(body);composer.clear();if(mounted)setState(() { sending=false; message=(r['message']??'Post published.').toString(); success=true; });reload();}catch(e){if(mounted)setState(() { sending=false; message='Could not publish your post. Please try again.'; success=false; });}}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
     const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
     const SizedBox(height:5),const Text('Share an update, ask a question, and connect with members.',style:TextStyle(color:muted)),
