@@ -51,8 +51,9 @@ class _AdminShellState extends State<AdminShell>{
     if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
     if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
     if(index==8){try{await _openAdminRoute('/admin/settings');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open settings: '+e.toString())));}if(mounted)setState(()=>selected=0);return;}
-    if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:-1);
+    if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:(widget.member['id'] as num?)?.toInt()??(widget.member['memberId'] as num?)?.toInt()??-1);
     if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
+    if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -101,6 +102,7 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(8,Icons.settings_outlined,'Settings'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(9,Icons.admin_panel_settings_outlined,'Admin permissions'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -564,6 +566,50 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
         ])));
       }),
       OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh permissions')),
+    ]);
+  });
+}
+
+
+class AdminSocialLinksPage extends StatefulWidget {
+  const AdminSocialLinksPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<AdminSocialLinksPage> createState()=>_AdminSocialLinksPageState();
+}
+class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
+  late Future<Map<String,dynamic>> future;final Map<String,TextEditingController> urls={};final Map<String,TextEditingController> labels={};final Map<String,bool> active={};final Set<String> saving={};String? message;
+  @override void initState(){super.initState();future=widget.api.adminSocialLinks();}
+  void reload()=>setState(()=>future=widget.api.adminSocialLinks());
+  Future<void> save(String key)async{
+    final url=urls[key]?.text.trim()??'',label=labels[key]?.text.trim()??key;
+    if(active[key]==true&&url.isEmpty){setState(()=>message='An active social link must have an HTTPS URL.');return;}
+    if(url.isNotEmpty){final uri=Uri.tryParse(url);if(uri==null||uri.scheme!='https'||uri.host.isEmpty){setState(()=>message='Use a valid HTTPS URL for '+label+'.');return;}}
+    setState(() {saving.add(key);message=null;});
+    try{await widget.api.saveAdminSocialLink(key:key,label:label,url:url,active:active[key]??false);if(mounted)setState(()=>message=label+' saved.');}
+    catch(e){if(mounted)setState(()=>message='Could not save '+label+'. Confirm Super Admin access and try again.');}
+    finally{if(mounted)setState(()=>saving.remove(key));}
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Social link management requires Super Admin access and the platform migration.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Only HTTPS links are accepted. Empty platforms stay hidden from members; never enter personal links here unless explicitly intended to be public.',style:TextStyle(color:muted)),
+      if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
+      ...items.map((item){
+        final key=(item['key_name']??'other').toString();
+        labels.putIfAbsent(key,()=>TextEditingController(text:(item['label']??key).toString()));
+        urls.putIfAbsent(key,()=>TextEditingController(text:(item['url']??'').toString()));
+        active.putIfAbsent(key,()=>item['active']==true||item['active']==1);
+        return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),Switch(value:active[key]!,activeColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
+          TextField(controller:labels[key],decoration:const InputDecoration(labelText:'Public label',border:OutlineInputBorder())),
+          const SizedBox(height:8),TextField(controller:urls[key],keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'HTTPS URL (blank hides the link)',border:OutlineInputBorder())),
+          Align(alignment:Alignment.centerRight,child:FilledButton(onPressed:saving.contains(key)?null:()=>save(key),child:Text(saving.contains(key)?'Saving…':'Save')))
+        ])));
+      }),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Reload links'))
     ]);
   });
 }
