@@ -103,6 +103,80 @@ class _SovereignAdminShellState extends State<SovereignAdminShell>{
  const SizedBox(height:14),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of Sovereign Desk'))]));}
 }
 
+class KycStatusPage extends StatefulWidget {
+  const KycStatusPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<KycStatusPage> createState() => _KycStatusPageState();
+}
+class _KycStatusPageState extends State<KycStatusPage> {
+  late Future<Map<String,dynamic>> future;
+  @override void initState(){super.initState();future=widget.api.kycStatus();}
+  void reload()=>setState(()=>future=widget.api.kycStatus());
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
+    if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Identity verification',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final d=snap.data??{};final status=(d['status']??'not_submitted').toString().toLowerCase();final note=(d['reviewerNote']??'').toString();
+    final label={'not_submitted':'Not submitted','pending':'Pending review','approved':'Approved','rejected':'Needs correction','needs_resubmission':'Resubmission required'}[status]??status.replaceAll('_',' ');
+    final color=status=='approved'?const Color(0xFF68D99B):(status=='rejected'||status=='needs_resubmission'?const Color(0xFFFF8D85):gold);
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('Identity verification',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),const SizedBox(height:5),
+      const Text('Your verification status is retrieved securely from your account.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:14),
+      Container(padding:const EdgeInsets.all(18),decoration:mcCard(widget.dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('CURRENT STATUS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:10,letterSpacing:1.1)),const SizedBox(height:9),
+        Text(label.toUpperCase(),style:TextStyle(color:color,fontWeight:FontWeight.w900,fontSize:20)),
+        if(d['submittedAt']!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text('Last submitted: '+d['submittedAt'].toString(),style:const TextStyle(color:muted,fontSize:11))),
+        if(note.isNotEmpty)Padding(padding:const EdgeInsets.only(top:12),child:Text('Reviewer note: '+note,style:const TextStyle(color:muted,fontSize:12,height:1.5))),
+        const SizedBox(height:12),
+        if(status=='approved')const Text('Your identity verification is approved. No further submission is needed.',style:TextStyle(color:muted,fontSize:12,height:1.5))
+        else if(status=='pending')const Text('Your application is awaiting review. Please wait for the review result before submitting again.',style:TextStyle(color:muted,fontSize:12,height:1.5))
+        else const Text('Continue to the secure verification form to submit your details or correct a returned application.',style:TextStyle(color:muted,fontSize:12,height:1.5)),
+      ])),
+      const SizedBox(height:12),
+      if(status!='approved'&&status!='pending')FilledButton.icon(onPressed:()=>launchUrl(Uri.parse('$site/kyc'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new),label:const Text('Open secure KYC form'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48))),
+      OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh verification status')),
+    ]);
+  });
+}
+
+class ReferralsPage extends StatefulWidget {
+  const ReferralsPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<ReferralsPage> createState()=>_ReferralsPageState();
+}
+class _ReferralsPageState extends State<ReferralsPage>{
+  late Future<Map<String,dynamic>> future;
+  @override void initState(){super.initState();future=widget.api.referrals();}
+  void reload()=>setState(()=>future=widget.api.referrals());
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
+    if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Referrals',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final d=snap.data??{};final link=(d['referralLink']??'').toString();final rows=(d['referrals'] as List? ??[]).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('Your referrals',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),const SizedBox(height:5),
+      const Text('People attributed to your referral code from the account database.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:14),
+      Container(padding:const EdgeInsets.all(18),decoration:mcCard(widget.dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('RECORDED REFERRALS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:10,letterSpacing:1.1)),const SizedBox(height:7),
+        Text((d['referralCount']??rows.length).toString(),style:const TextStyle(fontSize:30,fontWeight:FontWeight.w900)),
+        const SizedBox(height:12),const Text('YOUR INVITE LINK',style:TextStyle(color:muted,fontWeight:FontWeight.w800,fontSize:10)),const SizedBox(height:6),
+        SelectableText(link,style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
+      ])),
+      const SizedBox(height:14),Row(children:[const Expanded(child:Text('Referral history',style:TextStyle(fontSize:17,fontWeight:FontWeight.w900))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+      if(rows.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:20),child:Center(child:Text('No referred members are recorded yet.',style:TextStyle(color:muted)))),
+      ...rows.map((r)=>Container(margin:const EdgeInsets.only(bottom:9),padding:const EdgeInsets.all(13),decoration:mcCard(widget.dark),child:Row(children:[
+        const CircleAvatar(backgroundColor:Color(0x332E2716),child:Icon(Icons.person_outline,color:gold)),
+        const SizedBox(width:11),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text((r['fullName']??'Monarch member').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),
+          if((r['username']??'').toString().isNotEmpty)Text('@'+r['username'].toString(),style:const TextStyle(color:muted,fontSize:11)),
+          if((r['monarchId']??'').toString().isNotEmpty)Text(r['monarchId'].toString(),style:const TextStyle(color:gold,fontSize:10)),
+          if(r['joinedAt']!=null)Text('Joined: '+r['joinedAt'].toString(),style:const TextStyle(color:muted,fontSize:10)),
+        ])),
+      ]))),
+    ]);
+  });
+}
+
 class TransactionsPage extends StatefulWidget{
   const TransactionsPage({super.key,required this.api,required this.dark});final MonarchApi api;final bool dark;
   @override State<TransactionsPage> createState()=>_TransactionsPageState();
