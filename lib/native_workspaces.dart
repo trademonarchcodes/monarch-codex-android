@@ -38,31 +38,18 @@ class _AdminShellState extends State<AdminShell>{
   void reload()=>setState(()=>data=widget.api.adminOverview());
 
   Future<void> openSection(int index) async {
-    if (index==0) {
-      if(Navigator.of(context).canPop()) Navigator.of(context).pop();
-      setState(()=>selected=0); reload(); return;
-    }
-    if (index==4) {
-      if(Navigator.of(context).canPop()) Navigator.of(context).pop();
-      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));
-      if(mounted)setState(()=>selected=0);
-      return;
-    }
-    final routes={
-      1:('/admin/kyc','KYC verification'),
-      2:('/admin/deposits','Deposit review'),
-      3:('/admin/withdrawals','Withdrawal review'),
-      5:('/admin/audit','Audit history'),
-      6:('/admin','Analytics and operations'),
-      7:('/admin/settings','Security and settings'),
-      8:('/admin/settings','Admin settings'),
-    };
-    final entry=routes[index];
-    if(entry==null)return;
-    if(Navigator.of(context).canPop()) Navigator.of(context).pop();
+    if(index==0){if(Navigator.of(context).canPop())Navigator.of(context).pop();setState(()=>selected=0);reload();return;}
+    if(index==4){if(Navigator.of(context).canPop())Navigator.of(context).pop();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
+    if(Navigator.of(context).canPop())Navigator.of(context).pop();
     setState(()=>selected=index);
-    try { await _openAdminRoute(entry.$1); }
-    catch(e) { if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open ${entry.$2}: ${e.toString()}'))); }
+    final dark=Theme.of(context).brightness==Brightness.dark;
+    Widget? page;
+    if(index>=1&&index<=3)page=AdminReviewQueuePage(api:widget.api,type:const ['kyc','deposits','withdrawals'][index-1],dark:dark);
+    if(index==5)page=AdminDataPage(api:widget.api,kind:'audit',dark:dark);
+    if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
+    if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
+    if(index==8){try{await _openAdminRoute('/admin/settings');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open settings: '+e.toString())));}if(mounted)setState(()=>selected=0);return;}
+    if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
 
