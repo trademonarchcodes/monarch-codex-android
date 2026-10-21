@@ -25,3 +25,8 @@ The APK is a test build until the backend API branch is reviewed, merged, and de
 
 ## Official branding
 assets/images/monarch-codex-logo.svg is copied from the existing Monarch Codex website repository. Do not replace it with a generic crown or placeholder mark.
+
+
+## Release artifact verification
+
+The Android CI workflow generates the missing Android platform project files, runs formatting, analysis and tests, then builds a release APK and uploads it as a workflow artifact. Distribute the APK only after a successful build.
