@@ -559,7 +559,26 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
             actions.putIfAbsent(k,()=>readActions(existing?['allowedActions']));
             return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
               Row(children:[Expanded(child:Text(category.replaceAll('_',' '),style:const TextStyle(fontWeight:FontWeight.w700,fontSize:12))),SizedBox(width:125,child:DropdownButtonFormField<String>(value:current,decoration:const InputDecoration(isDense:true,contentPadding:EdgeInsets.symmetric(horizontal:8,vertical:8)),items:const [DropdownMenuItem(value:'green',child:Text('Green · Full')),DropdownMenuItem(value:'gold',child:Text('Gold · Partial')),DropdownMenuItem(value:'red',child:Text('Red · None'))],onChanged:(v){if(v!=null)setState(()=>levels[k]=v);}))]),
-              if(current=='gold')Wrap(spacing:4,runSpacing:0,children:actionOptions.map((a)=>FilterChip(label:Text(a,style:const TextStyle(fontSize:10)),selected:actions[k]!.contains(a),onSelected:(on)=>setState(()=>on?actions[k]!.add(a):actions[k]!.remove(a))).toList()),
+              if(current=='gold')
+                Wrap(
+                  spacing:4,
+                  runSpacing:0,
+                  children:actionOptions.map((action) {
+                    return FilterChip(
+                      label:Text(action,style:const TextStyle(fontSize:10)),
+                      selected:actions[k]!.contains(action),
+                      onSelected:(selected) {
+                        setState(() {
+                          if(selected) {
+                            actions[k]!.add(action);
+                          } else {
+                            actions[k]!.remove(action);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
               Align(alignment:Alignment.centerRight,child:TextButton(onPressed:saving.contains(k)?null:()=>save(memberId,category),child:Text(saving.contains(k)?'Saving…':'Save permission')))
             ]));
           })
