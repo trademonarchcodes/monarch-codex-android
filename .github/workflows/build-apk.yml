@@ -43,7 +43,7 @@ jobs:
               opening = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
               if opening not in manifest:
                   raise SystemExit("Could not safely find the Android manifest opening tag")
-              manifest = manifest.replace(opening, opening + '\\n    ' + permission, 1)
+              manifest = manifest.replace(opening, opening + '\n    ' + permission, 1)
               path.write_text(manifest)
           if permission not in path.read_text():
               raise SystemExit("INTERNET permission is missing from AndroidManifest.xml")
