@@ -276,6 +276,38 @@ class _CommunityPageState extends State<CommunityPage>{
   ]);
 }
 
+class OnlineCooperativePage extends StatefulWidget {
+  const OnlineCooperativePage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<OnlineCooperativePage> createState()=>_OnlineCooperativePageState();
+}
+class _OnlineCooperativePageState extends State<OnlineCooperativePage>{
+  final name=TextEditingController(),email=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
+  @override void initState(){super.initState();future=widget.api.cooperativeStatus();}
+  void reload()=>setState(()=>future=widget.api.cooperativeStatus());
+  Future<void> register()async{setState(()=>sending=true);try{await widget.api.submitCooperativeConnection(registeredName:name.text.trim(),registeredEmail:email.text.trim());if(mounted){setState(()=>{sending=false,message:'Submitted for manual verification. You will be notified after review.',success:true});name.clear();email.clear();reload();}}catch(e){if(mounted)setState(()=>{sending=false,message:'Could not submit these details. Check them and try again.',success:false});}}
+  Future<void> openRegistration()async{final uri=Uri.parse('https://airdrop.myturntech.com/register?ref=53');if(!await launchUrl(uri,mode:LaunchMode.externalApplication)&&mounted)setState(()=>message='Could not open the registration page. Please try again.');}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+    final items=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    final connected=items.any((x)=>x['status']=='approved');final pending=items.any((x)=>x['status']=='pending');
+    return ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('ONLINE COOPERATIVE',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Register with our referral link, then submit the same name and email for manual verification. We will not ask for your password or OTP.',style:TextStyle(color:muted)),
+      const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(15),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[Icon(connected?Icons.verified:pending?Icons.hourglass_top:Icons.link,color:gold),const SizedBox(width:8),Expanded(child:Text(connected?'CONNECTED TO MONARCH CODEX':pending?'VERIFICATION PENDING':'NOT CONNECTED',style:const TextStyle(fontWeight:FontWeight.w900,fontSize:12)))]),
+        const SizedBox(height:12),FilledButton.icon(onPressed:openRegistration,icon:const Icon(Icons.open_in_new),label:const Text('Register with Online Cooperative')),
+        const SizedBox(height:16),TextField(controller:name,decoration:const InputDecoration(labelText:'Name used to register',border:OutlineInputBorder())),
+        const SizedBox(height:10),TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Registration email',border:OutlineInputBorder())),
+        const SizedBox(height:12),if(message!=null)Padding(padding:const EdgeInsets.only(bottom:10),child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent))),
+        FilledButton(onPressed:sending||connected||pending?null:register,child:Text(sending?'Submitting…':pending?'Awaiting verification':connected?'Account connected':'Submit for verification')),
+      ]))),
+      if(snapshot.hasError)const Padding(padding:EdgeInsets.all(10),child:Text('Connection status could not be loaded. Check your connection and refresh.',style:TextStyle(color:muted))),
+      if(items.isNotEmpty) ...items.map((x)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:Icon(x['status']=='approved'?Icons.check_circle:x['status']=='pending'?Icons.hourglass_top:Icons.info_outline,color:gold),title:Text((x['status']??'').toString().toUpperCase()),subtitle:Text('Submitted: ${x['createdAt']??'—'}${x['reviewNote']==null?'':'\nReason: ${x['reviewNote']}'}')))),
+      const SizedBox(height:10),OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh connection status')),
+    ]);
+  });
+}
+
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
   final MonarchApi api;
@@ -354,6 +386,7 @@ class _ShellState extends State<Shell> {
         quick('Community', Icons.groups_outlined, () => page(null, 4), dark),
         quick('Verify KYC', Icons.shield_outlined, () => page('KYC Verification'), dark),
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
+        quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -395,6 +428,7 @@ class _ShellState extends State<Shell> {
     ]);
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
+    if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
     return featurePage(p, 'Monarch Codex', Icons.auto_awesome, 'This section will connect to your existing account backend. Existing records are not changed.', dark);
   }
 
