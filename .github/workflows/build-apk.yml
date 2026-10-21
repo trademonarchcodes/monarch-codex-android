@@ -99,7 +99,7 @@ jobs:
               }
           }
           '''
-              root_file.write_text(root_source.rstrip() + "\\n" + block + "\\n")
+              root_file.write_text(root_source.rstrip() + "\n" + block + "\n")
           print("Added plugin compile SDK override to", root_file)
           PY
 
