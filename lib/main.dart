@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -49,6 +50,27 @@ class MonarchApi {
   Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
   Future<Map<String, dynamic>> adminOverview() async => Map<String, dynamic>.from((await dio.get('admin/overview')).data as Map);
   Future<Map<String, dynamic>> submitWithdrawal({required String currency, required String amount, required String bankId, required String note}) async => Map<String, dynamic>.from((await dio.post('withdrawal/requests', data: {'currency': currency, 'amount': amount, 'bank_account_id': bankId, 'member_note': note})).data as Map);
+
+  Future<Map<String,dynamic>> profile() async => Map<String,dynamic>.from((await dio.get('profile')).data['member'] as Map);
+  Future<Map<String,dynamic>> saveProfile({required String fullName,required String username,required String email,required String phone}) async =>
+    Map<String,dynamic>.from((await dio.put('profile',data:{'fullName':fullName,'username':username,'email':email,'phone':phone})).data['member'] as Map);
+  Future<Map<String,dynamic>> uploadProfilePhoto(PlatformFile photo) async {
+    final bytes=photo.bytes;
+    if(bytes==null||bytes.isEmpty) throw Exception('The selected image could not be read. Please choose it again.');
+    if(bytes.length>3*1024*1024) throw Exception('Choose a JPG, PNG or WebP image under 3 MB.');
+    final ext=(photo.extension??'').toLowerCase();
+    final mime=ext=='jpg'||ext=='jpeg'?'image/jpeg':ext=='png'?'image/png':ext=='webp'?'image/webp':'';
+    if(mime.isEmpty) throw Exception('Choose a JPG, PNG or WebP image.');
+    return Map<String,dynamic>.from((await dio.post('profile/photo',data:{'mimeType':mime,'imageBase64':base64Encode(bytes)})).data as Map);
+  }
+  Future<Map<String,dynamic>> roles() async => Map<String,dynamic>.from((await dio.get('roles')).data as Map);
+  Future<Map<String,dynamic>> requestRole({required int roleId,required String message}) async => Map<String,dynamic>.from((await dio.post('roles/request',data:{'roleId':roleId,'message':message})).data as Map);
+  Future<Map<String,dynamic>> adminRoles() async => Map<String,dynamic>.from((await dio.get('admin/roles')).data as Map);
+  Future<Map<String,dynamic>> saveRole({int? roleId,required String roleName,required String description,required bool isActive}) async => Map<String,dynamic>.from((await dio.post('admin/roles/catalog',data:{'roleId':roleId,'roleName':roleName,'description':description,'isActive':isActive})).data as Map);
+  Future<Map<String,dynamic>> reviewRoleRequest({required int requestId,required String decision}) async => Map<String,dynamic>.from((await dio.post('admin/roles/requests/$requestId',data:{'decision':decision})).data as Map);
+  Future<Map<String,dynamic>> assignRole({required int memberId,required int roleId,required String action}) async => Map<String,dynamic>.from((await dio.post('admin/roles/assign',data:{'memberId':memberId,'roleId':roleId,'action':action})).data as Map);
+  Future<Map<String,dynamic>> requestSovereignPartner({required String companyName,required String message}) async => Map<String,dynamic>.from((await dio.post('sovereign/roles/partner-request',data:{'companyName':companyName,'message':message})).data as Map);
+
   Future<Map<String, dynamic>> submitDeposit({required String currency, required String amount, required String methodId, required String reference, required String note, required PlatformFile proof}) async {
     final bytes = proof.bytes;
     if (bytes == null || bytes.isEmpty) throw Exception('The selected receipt could not be read. Please choose it again.');
@@ -189,7 +211,7 @@ class Shell extends StatefulWidget {
 }
 class _ShellState extends State<Shell> {
   int tab = 0;
-  final int photoVersion = DateTime.now().millisecondsSinceEpoch;
+  int photoVersion = DateTime.now().millisecondsSinceEpoch;
   bool menu = false, loading = true;
   String? special, error;
   Map<String, dynamic>? data;
@@ -277,22 +299,7 @@ class _ShellState extends State<Shell> {
 
   Widget profilePage(bool dark) {
     final m = data?['member'] is Map ? Map<String, dynamic>.from(data!['member'] as Map) : widget.member;
-    return ListView(padding: const EdgeInsets.all(15), children: [
-      Container(padding: const EdgeInsets.all(20), decoration: card(dark), child: Column(children: [
-        avatar(m, 76, 24),
-        const SizedBox(height: 10), Text((m['fullName'] ?? 'Monarch Member').toString(), style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900), textAlign: TextAlign.center),
-        const SizedBox(height: 4), Text((m['email'] ?? '').toString(), style: const TextStyle(color: muted, fontSize: 12)),
-        const SizedBox(height: 10), Text((m['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
-      ])),
-      const SizedBox(height: 12),
-      tile('Personal details & profile photo', 'Update your profile on the secure member site.', Icons.manage_accounts_outlined, dark, () => openSite('/profile')),
-      tile('KYC Verification', 'Review identity verification status.', Icons.verified_user_outlined, dark, () => page('KYC Verification')),
-      tile('Referrals', 'Personal link and referral count.', Icons.share_outlined, dark, () => page('Referrals')),
-      tile('Settings', 'Appearance and account preferences.', Icons.settings_outlined, dark, () => page('Settings')),
-      tile('Help & Support', 'Contact official support.', Icons.support_agent, dark, () => page('Help & Support')),
-      tile(widget.light ? 'Switch to dark mode' : 'Switch to light mode', 'Change app appearance.', Icons.contrast, dark, widget.toggleTheme),
-      OutlinedButton.icon(onPressed: widget.signOut, icon: const Icon(Icons.logout, color: Color(0xFFFF8D85)), label: const Text('Sign out'), style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48))),
-    ]);
+    return ProfileEditorPage(api: widget.api, member: m, dark: dark, onUpdated: () { if(mounted) setState(() { photoVersion = DateTime.now().millisecondsSinceEpoch; }); refresh(); });
   }
 
   Widget specialPage(String p, bool dark) {
@@ -421,6 +428,32 @@ class _ShellState extends State<Shell> {
 }
 
 double number(dynamic value) => value is num ? value.toDouble() : double.tryParse(value?.toString() ?? '') ?? 0;
+
+
+class ProfileEditorPage extends StatefulWidget {
+  const ProfileEditorPage({super.key,required this.api,required this.member,required this.dark,required this.onUpdated});
+  final MonarchApi api; final Map<String,dynamic> member; final bool dark; final VoidCallback onUpdated;
+  @override State<ProfileEditorPage> createState()=>_ProfileEditorPageState();
+}
+class _ProfileEditorPageState extends State<ProfileEditorPage> {
+  final name=TextEditingController(), username=TextEditingController(), email=TextEditingController(), phone=TextEditingController(), requestMessage=TextEditingController();
+  Map<String,dynamic> member={}; List<dynamic> roles=[], requests=[]; bool loading=true,saving=false,photoBusy=false,rolesBusy=false; int version=DateTime.now().millisecondsSinceEpoch; String? error,notice;
+  @override void initState(){super.initState();member=Map<String,dynamic>.from(widget.member);_setControllers(member);_load();}
+  void _setControllers(Map<String,dynamic> m){name.text=(m['fullName']??'').toString();username.text=(m['username']??'').toString();email.text=(m['email']??'').toString();phone.text=(m['phone']??'').toString();}
+  Future<void> _load() async {try{final p=await widget.api.profile();final r=await widget.api.roles();if(!mounted)return;setState((){member=p;_setControllers(p);roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);loading=false;});}catch(e){if(mounted)setState((){loading=false;error=_message(e);});}}
+  String _message(Object e){if(e is DioException){final d=e.response?.data;if(d is Map&&d['message']!=null)return d['message'].toString();}return e.toString().replaceFirst('Exception: ','');}
+  Future<void> _save() async {setState((){saving=true;error=null;notice=null;});try{final p=await widget.api.saveProfile(fullName:name.text.trim(),username:username.text.trim(),email:email.text.trim(),phone:phone.text.trim());if(!mounted)return;setState((){member={...member,...p};notice='Your profile details were saved.';saving=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);saving=false;});}}
+  Future<void> _photo() async {try{final result=await FilePicker.platform.pickFiles(type:FileType.image,withData:true,allowMultiple:false);if(result==null||result.files.isEmpty)return;setState((){photoBusy=true;error=null;notice=null;});final r=await widget.api.uploadProfilePhoto(result.files.first);if(!mounted)return;setState((){version=DateTime.now().millisecondsSinceEpoch;member={...member,'profilePhotoUrl':'/member-avatar-current?v=$version'};notice='Profile picture updated across your account.';photoBusy=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);photoBusy=false;});}}
+  Future<void> _request(Map role) async {setState((){rolesBusy=true;error=null;notice=null;});try{await widget.api.requestRole(roleId:(role['id'] as num).toInt(),message:requestMessage.text.trim());requestMessage.clear();final r=await widget.api.roles();if(!mounted)return;setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);notice='Role request submitted for administrator review.';rolesBusy=false;});}catch(e){if(mounted)setState((){error=_message(e);rolesBusy=false;});}}
+  @override void dispose(){name.dispose();username.dispose();email.dispose();phone.dispose();requestMessage.dispose();super.dispose();}
+  @override Widget build(BuildContext context){final dark=widget.dark;final assigned=roles.where((r)=>r is Map&&r['assigned']==true).toList();return ListView(padding:const EdgeInsets.all(15),children:[
+    if(error!=null) Message(text:error!,success:false), if(notice!=null) Message(text:notice!,success:true),
+    Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(18),border:Border.all(color:const Color(0xFF6D5920))),child:Column(children:[MemberAvatar(api:widget.api,member:member,size:78,radius:24,version:version),const SizedBox(height:10),Text((member['fullName']??'Monarch Member').toString(),textAlign:TextAlign.center,style:const TextStyle(fontSize:19,fontWeight:FontWeight.w900)),Text((member['email']??'').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),OutlinedButton.icon(onPressed:photoBusy?null:_photo,icon:photoBusy?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.add_a_photo_outlined),label:Text(photoBusy?'Uploading photo…':'Change profile picture'))])),
+    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:card(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('PERSONAL DETAILS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:12),TextField(controller:name,decoration:const InputDecoration(labelText:'Full name')),const SizedBox(height:10),TextField(controller:username,decoration:const InputDecoration(labelText:'Username')),const SizedBox(height:10),TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Email address')),const SizedBox(height:10),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone number')),const SizedBox(height:14),FilledButton(onPressed:saving?null:_save,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48)),child:Text(saving?'Saving…':'Save profile details'))])),
+    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:card(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('YOUR ROLES',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:6),const Text('Roles are assigned only after administrator approval.',style:TextStyle(color:muted,fontSize:12)),if(loading)const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:gold))),if(!loading&&assigned.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('No roles have been assigned yet.',style:TextStyle(color:muted))),...assigned.map((r)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.verified_user,color:gold),title:Text((r['role_name']??'').toString()),subtitle:Text((r['description']??'').toString(),style:const TextStyle(color:muted,fontSize:12)))),if(!loading)...roles.where((r)=>r is Map&&r['assigned']!=true).map((r)=>Card(color:dark?const Color(0xFF101012):Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((r['role_name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.w900)),Text((r['description']??'Request approval to access this role.').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:8),TextField(controller:requestMessage,maxLines:2,decoration:const InputDecoration(labelText:'Reason for request (optional)')),Align(alignment:Alignment.centerRight,child:TextButton(onPressed:rolesBusy?null:()=>_request(Map<String,dynamic>.from(r as Map)),child:const Text('Request role')))]))))],)),
+    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:card(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ROLE REQUEST HISTORY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),if(requests.isEmpty)const Text('No requests yet.',style:TextStyle(color:muted)),...requests.map((r)=>ListTile(contentPadding:EdgeInsets.zero,title:Text((r['role_name']??'Role').toString()),subtitle:Text((r['message']??'').toString(),style:const TextStyle(color:muted,fontSize:12)),trailing:Text((r['status']??'').toString().toUpperCase(),style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900))))]))
+  ]);}
+}
 
 class MemberAvatar extends StatefulWidget {
   const MemberAvatar({super.key, required this.api, required this.member, required this.size, required this.radius, required this.version});
