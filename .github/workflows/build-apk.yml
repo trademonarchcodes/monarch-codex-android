@@ -123,19 +123,31 @@ jobs:
           import re
           cache = Path.home() / ".pub-cache" / "hosted" / "pub.dev"
           changed = []
-          for build_file in cache.glob("*/android/build.gradle"):
+          candidates = list(cache.glob("*/android/build.gradle")) + list(cache.glob("*/android/build.gradle.kts"))
+          for build_file in candidates:
               source = build_file.read_text()
-              # Some transitive Flutter plugins still declare compileSdk 34,
-              # which fails AAR metadata checks for dependencies requiring API 36.
-              updated, count = re.subn(
-                  r"(compileSdkVersion\s+|compileSdk\s*=\s*)34\b",
-                  lambda m: m.group(1) + "36",
-                  source,
-              )
-              if count:
+              updated = source
+              # Flutter plugins can inherit Flutter's default compile SDK (34) or
+              # pin it directly. Cover Groovy and Kotlin Gradle files.
+              patterns = [
+                  (r"(compileSdkVersion\s+)flutter\.compileSdkVersion\b", r"\g<1>36"),
+                  (r"(compileSdk\s*=\s*)flutter\.compileSdkVersion\b", r"\g<1>36"),
+                  (r"(compileSdkVersion\s+)34\b", r"\g<1>36"),
+                  (r"(compileSdk\s*=\s*)34\b", r"\g<1>36"),
+              ]
+              for pattern, repl in patterns:
+                  updated = re.sub(pattern, repl, updated)
+              if updated != source:
                   build_file.write_text(updated)
                   changed.append(str(build_file))
-          print("Raised plugin compileSdk 34 declarations to 36:", changed)
+          picker_files = [p for p in candidates if p.parent.parent.name.startswith("file_picker-")]
+          if not picker_files:
+              raise SystemExit("file_picker Android Gradle file was not found in pub cache")
+          picker_ok = any(re.search(r"compileSdk(?:Version)?\s*(?:=\s*)?36\b", p.read_text()) for p in picker_files)
+          if not picker_ok:
+              raise SystemExit("file_picker compile SDK is not 36 after patch")
+          print("Updated cached plugin compile SDK declarations:", changed)
+          print("Verified file_picker compiles against API 36.")
           PY
 
       - name: Analyze Flutter source
