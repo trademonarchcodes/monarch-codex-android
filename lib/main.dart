@@ -108,7 +108,7 @@ class _MonarchAppState extends State<MonarchApp> {
     theme: makeTheme(false), darkTheme: makeTheme(true), themeMode: light ? ThemeMode.light : ThemeMode.dark,
     home: busy ? const Scaffold(body: Center(child: CircularProgressIndicator(color: gold))) :
       member == null ? AuthPage(api: widget.api, onSignedIn: signedIn) :
-      (member!['isAdmin'] == true ? AdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) :
+      (member!['isSovereignAdmin'] == true ? SovereignAdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) : member!['isAdmin'] == true ? AdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) :
       Shell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light))),
   );
 }
