@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'main.dart';
+import 'package:monarch_codex/main.dart';
 
 String _workspaceError(Object error) {
   if (error is DioException) {
