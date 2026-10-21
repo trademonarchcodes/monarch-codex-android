@@ -22,16 +22,99 @@ Future<void> _openAdminRoute(String route) async {
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
-  final MonarchApi api; final Map<String,dynamic> member; final Future<void> Function() signOut; final bool light; final VoidCallback toggleTheme;
+  final MonarchApi api;
+  final Map<String,dynamic> member;
+  final Future<void> Function() signOut;
+  final bool light;
+  final VoidCallback toggleTheme;
   @override State<AdminShell> createState()=>_AdminShellState();
 }
+
 class _AdminShellState extends State<AdminShell>{
   late Future<Map<String,dynamic>> data;
+  int selected=0;
+  bool drawerBusy=false;
   @override void initState(){super.initState();data=widget.api.adminOverview();}
   void reload()=>setState(()=>data=widget.api.adminOverview());
+
+  Future<void> openSection(int index) async {
+    if (index==0) { setState(()=>selected=0); Navigator.of(context).pop(); reload(); return; }
+    if (index==4) {
+      Navigator.of(context).pop();
+      await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));
+      if(mounted)setState(()=>selected=0);
+      return;
+    }
+    final routes={
+      1:('/admin/kyc','KYC verification'),
+      2:('/admin/deposits','Deposit review'),
+      3:('/admin/withdrawals','Withdrawal review'),
+      5:('/admin/audit','Audit history'),
+      6:('/admin/analytics','Analytics'),
+      7:('/admin/security','Security centre'),
+      8:('/admin/settings','Admin settings'),
+    };
+    final entry=routes[index];
+    if(entry==null)return;
+    Navigator.of(context).pop();
+    setState(()=>selected=index);
+    try { await _openAdminRoute(entry.$1); }
+    catch(e) { if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open ${entry.$2}: ${e.toString()}'))); }
+    if(mounted)setState(()=>selected=0);
+  }
+
+  Widget _navItem(int index,IconData icon,String title) {
+    final active=selected==index;
+    return Padding(padding:const EdgeInsets.symmetric(horizontal:10,vertical:2),child:Material(
+      color:active?const Color(0xFF39301D):Colors.transparent,
+      borderRadius:BorderRadius.circular(12),
+      child:ListTile(
+        dense:true,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12)),
+        leading:Icon(icon,color:active?gold:muted,size:21),
+        title:Text(title,style:TextStyle(color:active?gold:null,fontSize:12,fontWeight:active?FontWeight.w900:FontWeight.w600)),
+        trailing:active?Container(width:3,height:22,decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(4))):null,
+        onTap:()=>openSection(index),
+      ),
+    ));
+  }
+
   @override Widget build(BuildContext context){
     final dark=Theme.of(context).brightness==Brightness.dark;
-    return Scaffold(appBar:AppBar(automaticallyImplyLeading:false,title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:34,height:34),const SizedBox(width:8),const Expanded(child:Text('ADMIN CONTROL CENTRE',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),actions:[IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold)),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    return Scaffold(
+      drawer:Drawer(
+        backgroundColor:dark?const Color(0xFF10110F):const Color(0xFFF6F4ED),
+        width:MediaQuery.of(context).size.width*0.82,
+        child:SafeArea(child:Column(children:[
+          Padding(padding:const EdgeInsets.fromLTRB(18,18,18,16),child:Row(children:[
+            Container(width:44,height:44,padding:const EdgeInsets.all(5),decoration:BoxDecoration(color:const Color(0xFF292319),borderRadius:BorderRadius.circular(13),border:Border.all(color:const Color(0xFF554628))),child:SvgPicture.asset('assets/images/monarch-codex-logo.svg')),
+            const SizedBox(width:11),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text('MONARCH CODEX',style:TextStyle(color:gold,fontSize:13,fontWeight:FontWeight.w900,letterSpacing:1)),
+              SizedBox(height:3),Text('ADMIN CONTROL CENTRE',style:TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1)),
+            ])),
+          ])),
+          Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
+          Padding(padding:const EdgeInsets.fromLTRB(20,16,20,7),child:Align(alignment:Alignment.centerLeft,child:Text('WORKSPACE',style:TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w900,letterSpacing:1.3)))),
+          Expanded(child:ListView(padding:EdgeInsets.zero,children:[
+            _navItem(0,Icons.dashboard_outlined,'Overview'),
+            _navItem(1,Icons.verified_user_outlined,'KYC verification'),
+            _navItem(2,Icons.receipt_long_outlined,'Deposits'),
+            _navItem(3,Icons.payments_outlined,'Withdrawals'),
+            _navItem(4,Icons.groups_outlined,'Members & roles'),
+            _navItem(5,Icons.history_outlined,'Audit history'),
+            _navItem(6,Icons.query_stats_outlined,'Analytics'),
+            _navItem(7,Icons.shield_outlined,'Security centre'),
+            _navItem(8,Icons.settings_outlined,'Settings'),
+          ])),
+          Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
+          ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){Navigator.of(context).pop();widget.toggleTheme();}),
+          ListTile(leading:const Icon(Icons.logout,color:Color(0xFFD8A29A)),title:const Text('Sign out',style:TextStyle(color:Color(0xFFD8A29A),fontSize:12)),onTap:widget.signOut),
+          const SizedBox(height:8),
+        ])),
+      ),
+      appBar:AppBar(
+        title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:32,height:32),const SizedBox(width:8),const Expanded(child:Text('ADMIN CONTROL CENTRE',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),
+        actions:[IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold),tooltip:'Toggle appearance'),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold),tooltip:'Refresh overview')],
+      ),
       body:FutureBuilder<Map<String,dynamic>>(future:data,builder:(context,snap){
         if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
         if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Icon(Icons.admin_panel_settings_outlined,color:gold,size:48),const Text('Admin dashboard could not load',style:TextStyle(fontSize:21,fontWeight:FontWeight.w900)),Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
@@ -48,28 +131,29 @@ class _AdminShellState extends State<AdminShell>{
             _stat('TOTAL MEMBERS',d['members'],Icons.groups_outlined,dark),_stat('PENDING KYC',d['pendingKyc'],Icons.verified_user_outlined,dark),
             _stat('PENDING DEPOSITS',d['pendingDeposits'],Icons.receipt_long,dark),_stat('WITHDRAWAL QUEUE',d['pendingWithdrawals'],Icons.payments_outlined,dark),
           ]),
-          const SizedBox(height:14),Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const SizedBox(height:14),
+          Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text('SECURITY & FINANCIAL CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),SizedBox(height:8),
-            Text('This is a separate administrator workspace. Member navigation is not shown here. Financial requests remain pending until reviewed; this dashboard never edits wallet balances.',style:TextStyle(color:muted,fontSize:12,height:1.5)),
+            Text('Financial requests must be reviewed through authorized server workflows. The app does not directly change wallet balances.',style:TextStyle(color:muted,fontSize:12,height:1.5)),
           ])),
           const SizedBox(height:14),
           Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-            const Text('REVIEW & APPROVAL WORKSPACE',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),const SizedBox(height:7),
-            const Text('Open the secure administrator review queues to inspect identity submissions and take the appropriate review decision. The website may ask you to sign in again.',style:TextStyle(color:muted,fontSize:12,height:1.5)),const SizedBox(height:12),
-            SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>_openAdminRoute('/admin/kyc'),icon:const Icon(Icons.verified_user_outlined),label:const Text('Review & approve identity (KYC)'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(46)))),
+            const Text('REVIEW & APPROVAL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),const SizedBox(height:7),
+            const Text('Choose a review queue from the sidebar. The secure review portal may request a fresh sign-in.',style:TextStyle(color:muted,fontSize:12,height:1.5)),const SizedBox(height:12),
+            SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>_openAdminRoute('/admin/kyc'),icon:const Icon(Icons.verified_user_outlined),label:const Text('Open KYC review'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(46)))),
             const SizedBox(height:8),
-            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/deposits'),icon:const Icon(Icons.receipt_long),label:const Text('Review deposits'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/deposits'),icon:const Icon(Icons.receipt_long),label:const Text('Open deposit review'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
             const SizedBox(height:8),
-            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/withdrawals'),icon:const Icon(Icons.payments_outlined),label:const Text('Review withdrawals'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/withdrawals'),icon:const Icon(Icons.payments_outlined),label:const Text('Open withdrawal review'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
           ])),
           const SizedBox(height:12),FilledButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:dark))),icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Manage member roles'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48))),
           const SizedBox(height:12),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of administrator account')),
         ]);
-      }));
+      }),
+    );
   }
   Widget _stat(String label,dynamic value,IconData icon,bool dark)=>Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[Icon(icon,color:gold,size:20),const SizedBox(height:10),Text((value??'—').toString(),style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(label,style:const TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w900))]));
 }
-
 
 class RoleManagerPage extends StatefulWidget {
  const RoleManagerPage({super.key,required this.api,required this.dark}); final MonarchApi api; final bool dark;
