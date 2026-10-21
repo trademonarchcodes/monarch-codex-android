@@ -49,8 +49,8 @@ jobs:
             read -r density icon_size foreground_size <<< "$spec"
             dir="$RES/mipmap-$density"
             mkdir -p "$dir"
-            convert -size "${icon_size}x${icon_size}" xc:'#09090B' \\
-              \( /tmp/monarch-codex-logo.png -resize "${icon_size}x${icon_size}" \\) \\
+            convert -size "${icon_size}x${icon_size}" xc:'#09090B' \
+              \( /tmp/monarch-codex-logo.png -resize "${icon_size}x${icon_size}" \) \
               -gravity center -composite "$dir/ic_launcher.png"
             cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
             convert /tmp/monarch-codex-logo.png -resize "${foreground_size}x${foreground_size}" "$dir/ic_launcher_foreground.png"
