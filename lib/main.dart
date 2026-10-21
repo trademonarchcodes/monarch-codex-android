@@ -22,7 +22,7 @@ Future<void> main() async {
 
 class MonarchApi {
   MonarchApi(CookieJar jar) : dio = Dio(BaseOptions(
-    baseUrl: apiRoot,
+    baseUrl: '$apiRoot/',
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 20),
     headers: {'Accept': 'application/json'},
@@ -31,16 +31,16 @@ class MonarchApi {
   }
   final Dio dio;
   Future<Map<String, dynamic>?> me() async {
-    try { return Map<String, dynamic>.from((await dio.get('/auth/me')).data['member'] as Map); }
+    try { return Map<String, dynamic>.from((await dio.get('auth/me')).data['member'] as Map); }
     on DioException catch (e) { if (e.response?.statusCode == 401) return null; rethrow; }
   }
   Future<Map<String, dynamic>> login(String identity, String password) async =>
-      Map<String, dynamic>.from((await dio.post('/auth/login', data: {'identity': identity, 'password': password})).data['member'] as Map);
+      Map<String, dynamic>.from((await dio.post('auth/login', data: {'identity': identity, 'password': password})).data['member'] as Map);
   Future<Map<String, dynamic>> register(Map<String, dynamic> data) async =>
-      Map<String, dynamic>.from((await dio.post('/auth/register', data: data)).data as Map);
+      Map<String, dynamic>.from((await dio.post('auth/register', data: data)).data as Map);
   Future<Map<String, dynamic>> overview() async =>
-      Map<String, dynamic>.from((await dio.get('/overview')).data as Map);
-  Future<void> logout() async { await dio.post('/auth/logout'); }
+      Map<String, dynamic>.from((await dio.get('overview')).data as Map);
+  Future<void> logout() async { await dio.post('auth/logout'); }
 }
 
 ThemeData makeTheme(bool dark) => ThemeData(
