@@ -3,8 +3,6 @@ name: Build Monarch Codex Android APK
 on:
   push:
     branches: [main, "codex/**"]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
