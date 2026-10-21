@@ -17,6 +17,9 @@ jobs:
           channel: stable
           cache: true
       - run: flutter --version
+      # This repository contains Flutter sources but did not include the Android platform scaffold.
+      # Generate the standard Android project files in the checked-out workspace before building.
+      - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
       - run: flutter pub get
       - run: dart format --output=none lib
       - run: flutter analyze
