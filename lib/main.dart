@@ -2,10 +2,12 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:monarch_codex/native_workspaces.dart';
 
 const gold = Color(0xFFF3CF3C);
 const ink = Color(0xFF09090B);
@@ -42,6 +44,17 @@ class MonarchApi {
   Future<Map<String, dynamic>> overview() async =>
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
+  Future<Map<String, dynamic>> transactions() async => Map<String, dynamic>.from((await dio.get('transactions')).data as Map);
+  Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
+  Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
+  Future<Map<String, dynamic>> adminOverview() async => Map<String, dynamic>.from((await dio.get('admin/overview')).data as Map);
+  Future<Map<String, dynamic>> submitWithdrawal({required String currency, required String amount, required String bankId, required String note}) async => Map<String, dynamic>.from((await dio.post('withdrawal/requests', data: {'currency': currency, 'amount': amount, 'bank_account_id': bankId, 'member_note': note})).data as Map);
+  Future<Map<String, dynamic>> submitDeposit({required String currency, required String amount, required String methodId, required String reference, required String note, required PlatformFile proof}) async {
+    final bytes = proof.bytes;
+    if (bytes == null || bytes.isEmpty) throw Exception('The selected receipt could not be read. Please choose it again.');
+    final form = FormData.fromMap({'currency': currency, 'amount': amount, 'payment_method_id': methodId, 'payment_reference': reference, 'member_note': note, 'payment_proof': MultipartFile.fromBytes(bytes, filename: proof.name)});
+    return Map<String, dynamic>.from((await dio.post('deposit/requests', data: form)).data as Map);
+  }
 }
 
 ThemeData makeTheme(bool dark) => ThemeData(
@@ -73,7 +86,8 @@ class _MonarchAppState extends State<MonarchApp> {
     theme: makeTheme(false), darkTheme: makeTheme(true), themeMode: light ? ThemeMode.light : ThemeMode.dark,
     home: busy ? const Scaffold(body: Center(child: CircularProgressIndicator(color: gold))) :
       member == null ? AuthPage(api: widget.api, onSignedIn: signedIn) :
-      Shell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)),
+      (member!['isAdmin'] == true ? AdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) :
+      Shell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light))),
   );
 }
 
@@ -252,13 +266,12 @@ class _ShellState extends State<Shell> {
     final w = data?['wallet'] is Map ? Map<String, dynamic>.from(data!['wallet'] as Map) : <String, dynamic>{};
     return ListView(padding: const EdgeInsets.all(15), children: [
       const Text('Your money, clearly.', style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 6), const Text('Balances are read from your existing member account.', style: TextStyle(color: muted, fontSize: 12)),
+      const SizedBox(height: 6), const Text('Requests and history are managed securely inside this app.', style: TextStyle(color: muted, fontSize: 12)),
       const SizedBox(height: 16), balanceCard(number(w['ngn']), number(w['usd']), number(w['rate'])),
       const SizedBox(height: 12),
-      tile('Deposit', 'Submit a deposit request and payment proof.', Icons.add_card, dark, () => openSite('/deposit')),
-      tile('Withdraw', 'Subject to approved KYC and account checks.', Icons.south_west, dark, () => openSite('/withdraw')),
-      tile('Transactions', 'Review your recorded activity.', Icons.receipt_long, dark, () => openSite('/transactions')),
-      const Message(text: 'Financial actions open the secure website for now. Native money movement will be connected only after its API preserves review and duplicate-credit safeguards.', success: true),
+      tile('Deposit', 'Choose a payment destination and submit your receipt.', Icons.add_card, dark, () => page('Deposit')),
+      tile('Withdraw', 'Request a payout to a saved account after KYC approval.', Icons.south_west, dark, () => page('Withdraw')),
+      tile('Transactions', 'View recorded activity and request statuses.', Icons.receipt_long, dark, () => page('Transactions')),
     ]);
   }
 
@@ -283,6 +296,9 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
+    if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
+    if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
+    if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [
       featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),
       tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),
