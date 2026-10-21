@@ -14,6 +14,12 @@ String _workspaceError(Object error) {
   return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
 }
 
+Future<void> _openAdminRoute(String route) async {
+  final uri=Uri.parse('$site$route');
+  final opened=await launchUrl(uri,mode:LaunchMode.externalApplication);
+  if(!opened) throw Exception('Could not open the administrator review page.');
+}
+
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
   final MonarchApi api; final Map<String,dynamic> member; final Future<void> Function() signOut; final bool light; final VoidCallback toggleTheme;
@@ -45,6 +51,16 @@ class _AdminShellState extends State<AdminShell>{
           const SizedBox(height:14),Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             Text('SECURITY & FINANCIAL CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),SizedBox(height:8),
             Text('This is a separate administrator workspace. Member navigation is not shown here. Financial requests remain pending until reviewed; this dashboard never edits wallet balances.',style:TextStyle(color:muted,fontSize:12,height:1.5)),
+          ])),
+          const SizedBox(height:14),
+          Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            const Text('REVIEW & APPROVAL WORKSPACE',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),const SizedBox(height:7),
+            const Text('Open the secure administrator review queues to inspect identity submissions and take the appropriate review decision. The website may ask you to sign in again.',style:TextStyle(color:muted,fontSize:12,height:1.5)),const SizedBox(height:12),
+            SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>_openAdminRoute('/admin/kyc'),icon:const Icon(Icons.verified_user_outlined),label:const Text('Review & approve identity (KYC)'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(46)))),
+            const SizedBox(height:8),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/deposits'),icon:const Icon(Icons.receipt_long),label:const Text('Review deposits'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
+            const SizedBox(height:8),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/withdrawals'),icon:const Icon(Icons.payments_outlined),label:const Text('Review withdrawals'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
           ])),
           const SizedBox(height:12),FilledButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:dark))),icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Manage member roles'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48))),
           const SizedBox(height:12),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of administrator account')),
