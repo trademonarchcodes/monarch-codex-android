@@ -104,13 +104,21 @@ class _MonarchAppState extends State<MonarchApp> {
   bool busy = true, light = false;
   @override void initState() { super.initState(); widget.api.me().then((v) { if (mounted) setState(() { member = v; busy = false; }); }).catchError((_) { if (mounted) setState(() => busy = false); }); }
   void signedIn(Map<String, dynamic> m) => setState(() => member = m);
+  bool _isSovereignAdmin(Map<String, dynamic> m) {
+    final role = (m['adminRole'] ?? '').toString().trim().toLowerCase().replaceAll(' ', '_');
+    return m['isSovereignAdmin'] == true || role == 'sovereign_desk_admin' || role == 'sovereign_admin';
+  }
+  bool _isAdmin(Map<String, dynamic> m) {
+    final role = (m['adminRole'] ?? '').toString().trim().toLowerCase().replaceAll(' ', '_');
+    return m['isAdmin'] == true || (role.isNotEmpty && role != 'sovereign_desk_admin' && role != 'sovereign_admin');
+  }
   Future<void> signOut() async { try { await widget.api.logout(); } catch (_) {} if (mounted) setState(() => member = null); }
   @override Widget build(BuildContext context) => MaterialApp(
     title: 'Monarch Codex', debugShowCheckedModeBanner: false,
     theme: makeTheme(false), darkTheme: makeTheme(true), themeMode: light ? ThemeMode.light : ThemeMode.dark,
     home: busy ? const Scaffold(body: Center(child: CircularProgressIndicator(color: gold))) :
       member == null ? AuthPage(api: widget.api, onSignedIn: signedIn) :
-      (member!['isSovereignAdmin'] == true ? SovereignAdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) : member!['isAdmin'] == true ? AdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) :
+      (_isSovereignAdmin(member!) ? SovereignAdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) : _isAdmin(member!) ? AdminShell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light)) :
       Shell(api: widget.api, member: member!, signOut: signOut, light: light, toggleTheme: () => setState(() => light = !light))),
   );
 }
