@@ -99,8 +99,8 @@ class _DepositPageState extends State<DepositPage>{
   Future<void> chooseProof()async{final r=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['jpg','jpeg','png','webp','pdf'],withData:true);if(r!=null&&r.files.isNotEmpty&&mounted)setState(()=>proof=r.files.first);}
   Future<void> submit()async{
     if(!form.currentState!.validate())return;if(proof==null){setState(()=>error='Attach your payment receipt before submitting.');return;}
-    setState(()=>{busy=true,error='',success=''});
-    try{final r=await widget.api.submitDeposit(currency:currency,amount:amount.text.trim(),methodId:methodId,reference:reference.text.trim(),note:note.text.trim(),proof:proof!);if(!mounted)return;setState(()=>{success=(r['message']??'Deposit request submitted.').toString(),amount.clear(),reference.clear(),note.clear(),proof=null,methodId=''});widget.onDone();}
+    setState(() { busy=true; error=''; success=''; });
+    try{final r=await widget.api.submitDeposit(currency:currency,amount:amount.text.trim(),methodId:methodId,reference:reference.text.trim(),note:note.text.trim(),proof:proof!);if(!mounted)return;setState(() { success=(r['message']??'Deposit request submitted.').toString(); amount.clear(); reference.clear(); note.clear(); proof=null; methodId=''; });widget.onDone();}
     catch(e){if(mounted)setState(()=>error=_workspaceError(e));}finally{if(mounted)setState(()=>busy=false);}
   }
   @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:options,builder:(context,snap){
@@ -113,7 +113,7 @@ class _DepositPageState extends State<DepositPage>{
       const Text('Make a deposit',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),const SizedBox(height:5),const Text('Submit transfer details and your receipt for administrator review.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:13),
       if(error.isNotEmpty)Message(text:error,success:false),if(success.isNotEmpty)Message(text:success,success:true),
       Form(key:form,child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Deposit currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('Nigerian Naira (NGN)')),DropdownMenuItem(value:'USD',child:Text('US Dollar (USD)'))],onChanged:busy?null:(v)=>setState(()=>{currency=v??'NGN',methodId=''})),
+        DropdownButtonFormField<String>(value:currency,decoration:const InputDecoration(labelText:'Deposit currency'),items:const[DropdownMenuItem(value:'NGN',child:Text('Nigerian Naira (NGN)')),DropdownMenuItem(value:'USD',child:Text('US Dollar (USD)'))],onChanged:busy?null:(v)=>setState(() { currency=v??'NGN'; methodId=''; })),
         const SizedBox(height:10),if(methods.isEmpty)const Message(text:'No active payment methods are configured for this currency. Contact support.',success:false),
         if(methods.isNotEmpty)DropdownButtonFormField<String>(value:methodId,isExpanded:true,decoration:const InputDecoration(labelText:'Payment destination'),items:methods.map((m)=>DropdownMenuItem(value:m['id'].toString(),child:Text((m['label']??m['method_type']??'Payment method').toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>methodId=v??'')),
         if(methods.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(14),border:Border.all(color:const Color(0xFF6D5920))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -139,7 +139,7 @@ class _WithdrawalPageState extends State<WithdrawalPage>{
   final form=GlobalKey<FormState>();final amount=TextEditingController(),note=TextEditingController();late Future<Map<String,dynamic>> options;String currency='NGN',bankId='',error='',success='';bool busy=false;
   @override void initState(){super.initState();options=widget.api.withdrawalOptions();}
   @override void dispose(){amount.dispose();note.dispose();super.dispose();}
-  Future<void> submit()async{if(!form.currentState!.validate())return;setState(()=>{busy=true,error='',success=''});try{final r=await widget.api.submitWithdrawal(currency:currency,amount:amount.text.trim(),bankId:bankId,note:note.text.trim());if(!mounted)return;setState(()=>{success=(r['message']??'Withdrawal request submitted.').toString(),amount.clear(),note.clear()});widget.onDone();}catch(e){if(mounted)setState(()=>error=_workspaceError(e));}finally{if(mounted)setState(()=>busy=false);}}
+  Future<void> submit()async{if(!form.currentState!.validate())return;setState(() { busy=true; error=''; success=''; });try{final r=await widget.api.submitWithdrawal(currency:currency,amount:amount.text.trim(),bankId:bankId,note:note.text.trim());if(!mounted)return;setState(() { success=(r['message']??'Withdrawal request submitted.').toString(); amount.clear(); note.clear(); });widget.onDone();}catch(e){if(mounted)setState(()=>error=_workspaceError(e));}finally{if(mounted)setState(()=>busy=false);}}
   @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:options,builder:(context,snap){
     if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
     if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Withdraw',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),Message(text:_workspaceError(snap.error!),success:false),FilledButton(onPressed:()=>setState(()=>options=widget.api.withdrawalOptions()),child:const Text('Retry'))]);
