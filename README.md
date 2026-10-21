@@ -25,3 +25,17 @@ The APK is a test build until the backend API branch is reviewed, merged, and de
 
 ## Official branding
 assets/images/monarch-codex-logo.svg is copied from the existing Monarch Codex website repository. Do not replace it with a generic crown or placeholder mark.
+
+
+## Platform completion branch
+
+This branch adds native member notifications, a community feed and composer, Online Cooperative connection submission with manual review status, official social links, and Super Admin screens for Cooperative review, social-link management, and Green/Gold/Red admin permission settings.
+
+The Android app uses the shared API at `https://monarchcodex.online/api/mobile`. The matching website/backend changes are in the companion `trademonarchcodes/monarch-codex-site` branch `codex/platform-completion`.
+
+### Release verification
+
+- The repository workflow `.github/workflows/flutter-android.yml` runs Dart formatting checks, Flutter analysis/tests, and a release APK build.
+- Do not distribute an APK unless the workflow has succeeded and the artifact has been checked.
+- The companion backend requires the additive migration `migrations/021_platform_completion_foundation.sql`. Apply it only after taking a verified database backup and reviewing the schema.
+- Online Cooperative verification is manual. The member submits their registration name and email; the Super Admin confirms with the Cooperative administrator. Never request a Cooperative password or OTP.
