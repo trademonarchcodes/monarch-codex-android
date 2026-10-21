@@ -445,7 +445,25 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
   Future<void> _load() async {try{final p=await widget.api.profile();if(!mounted)return;setState((){member=p;_setControllers(p);loading=false;});try{final r=await widget.api.roles();if(mounted)setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);});}catch(e){if(mounted)setState(()=>error='Profile editing is available, but role requests need the latest website update. '+_message(e));}}catch(e){if(mounted)setState((){loading=false;error=_message(e);});}}
   String _message(Object e){if(e is DioException){final d=e.response?.data;if(d is Map&&d['message']!=null)return d['message'].toString();}return e.toString().replaceFirst('Exception: ','');}
   Future<void> _save() async {setState((){saving=true;error=null;notice=null;});try{final p=await widget.api.saveProfile(fullName:name.text.trim(),username:username.text.trim(),email:email.text.trim(),phone:phone.text.trim());if(!mounted)return;setState((){member={...member,...p};notice='Your profile details were saved.';saving=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);saving=false;});}}
-  Future<void> _photo() async {try{final result=await FilePicker.platform.pickFiles(type:FileType.image,withData:true,allowMultiple:false);if(result==null||result.files.isEmpty)return;setState((){photoBusy=true;error=null;notice=null;});await widget.api.uploadProfilePhoto(result.files.first);if(!mounted)return;setState((){version=DateTime.now().millisecondsSinceEpoch;member={...member,'profilePhotoUrl':'/member-avatar-current?v=$version'};notice='Profile picture updated across your account.';photoBusy=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);photoBusy=false;});}}
+  Future<void> _photo() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true, allowMultiple: false);
+      if (result == null || result.files.isEmpty) return;
+      setState(() { photoBusy = true; error = null; notice = null; });
+      final uploaded = await widget.api.uploadProfilePhoto(result.files.first);
+      if (!mounted) return;
+      final photoUrl = (uploaded['profilePhotoUrl'] ?? '/member-avatar-current').toString();
+      setState(() {
+        version = DateTime.now().millisecondsSinceEpoch;
+        member = {...member, 'profilePhotoUrl': photoUrl};
+        notice = 'Profile picture updated across your account.';
+        photoBusy = false;
+      });
+      widget.onUpdated();
+    } catch (e) {
+      if (mounted) setState(() { error = _message(e); photoBusy = false; });
+    }
+  }
   Future<void> _request(Map role) async {setState((){rolesBusy=true;error=null;notice=null;});try{await widget.api.requestRole(roleId:(role['id'] as num).toInt(),message:requestMessage.text.trim());requestMessage.clear();final r=await widget.api.roles();if(!mounted)return;setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);notice='Role request submitted for administrator review.';rolesBusy=false;});}catch(e){if(mounted)setState((){error=_message(e);rolesBusy=false;});}}
   @override void dispose(){name.dispose();username.dispose();email.dispose();phone.dispose();requestMessage.dispose();super.dispose();}
   @override Widget build(BuildContext context){final dark=widget.dark;final assigned=roles.where((r)=>r is Map&&r['assigned']==true).toList();return ListView(padding:const EdgeInsets.all(15),children:[
@@ -488,8 +506,8 @@ class _MemberAvatarState extends State<MemberAvatar> {
     clipBehavior: Clip.antiAlias,
     child: FutureBuilder<Uint8List?>(future: bytes, builder: (context, snapshot) {
       final data = snapshot.data;
-      if (data == null) return Icon(Icons.person, color: gold, size: widget.size * .52);
-      return Image.memory(data, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.person, color: gold, size: widget.size * .52));
+      if (data == null) return Padding(padding: EdgeInsets.all(widget.size * .14), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg', fit: BoxFit.contain));
+      return Image.memory(data, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Padding(padding: EdgeInsets.all(widget.size * .14), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg', fit: BoxFit.contain)));
     }),
   );
 }
