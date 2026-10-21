@@ -51,6 +51,8 @@ class _AdminShellState extends State<AdminShell>{
     if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
     if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
     if(index==8){try{await _openAdminRoute('/admin/settings');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open settings: '+e.toString())));}if(mounted)setState(()=>selected=0);return;}
+    if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:-1);
+    if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -97,6 +99,8 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(6,Icons.query_stats_outlined,'Analytics'),
             _navItem(7,Icons.shield_outlined,'Security centre'),
             _navItem(8,Icons.settings_outlined,'Settings'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(9,Icons.admin_panel_settings_outlined,'Admin permissions'),
+            if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
