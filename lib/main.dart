@@ -467,7 +467,7 @@ class _ShellState extends State<Shell> {
     child: Row(children: List.generate(names.length, (i) => Expanded(child: InkWell(
       onTap: () => page(null, i), borderRadius: BorderRadius.circular(11),
       child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withOpacity(.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: Icon(icons[i], size: 18, color: tab == i ? gold : muted)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withValues(alpha:.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: Icon(icons[i], size: 18, color: tab == i ? gold : muted)),
         const SizedBox(height: 3), Text(names[i], maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 8.5, fontWeight: tab == i ? FontWeight.w900 : FontWeight.w600, color: tab == i ? gold : muted)),
       ])),
     )))),
@@ -527,14 +527,14 @@ class _ShellState extends State<Shell> {
 
   Widget quick(String label, IconData icon, VoidCallback action, bool dark) => InkWell(onTap: action, borderRadius: BorderRadius.circular(14), child: Container(
     decoration: card(dark), padding: const EdgeInsets.all(8), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Container(width: 37, height: 37, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
+      Container(width: 37, height: 37, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
       const SizedBox(height: 7), Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
     ]),
   ));
 
   Widget featurePage(String title, String subtitle, IconData icon, String body, bool dark) => ListView(padding: const EdgeInsets.all(15), children: [
     Container(padding: const EdgeInsets.all(20), decoration: card(dark), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 50, height: 50, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: gold, size: 27)),
+      Container(width: 50, height: 50, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: gold, size: 27)),
       const SizedBox(height: 15), Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
       const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
       const SizedBox(height: 13), Text(body, style: const TextStyle(color: muted, fontSize: 13, height: 1.6)),
@@ -544,7 +544,7 @@ class _ShellState extends State<Shell> {
   Widget tile(String title, String subtitle, IconData icon, bool dark, VoidCallback action) => Container(
     margin: const EdgeInsets.only(bottom: 10), decoration: card(dark), child: ListTile(
       onTap: action, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
-      leading: Container(width: 39, height: 39, decoration: BoxDecoration(color: gold.withOpacity(.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
+      leading: Container(width: 39, height: 39, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
       title: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
       subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle, style: const TextStyle(color: muted, fontSize: 10, height: 1.4))),
       trailing: const Icon(Icons.chevron_right, color: muted, size: 19),
