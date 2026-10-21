@@ -51,6 +51,13 @@ class MonarchApi {
   Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
   Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
   Future<Map<String, dynamic>> adminOverview() async => Map<String, dynamic>.from((await dio.get('admin/overview')).data as Map);
+  Future<Map<String,dynamic>> adminReviewQueue(String type) async => Map<String,dynamic>.from((await dio.get('admin/reviews/$type')).data as Map);
+  Future<Map<String,dynamic>> reviewKyc({required int id,required String status,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/reviews/kyc/$id',data:{'status':status,'note':note})).data as Map);
+  Future<Map<String,dynamic>> reviewDeposit({required int id,required String decision,required String note,required bool confirmed}) async => Map<String,dynamic>.from((await dio.post('admin/reviews/deposits/$id',data:{'decision':decision,'note':note,'confirmed':confirmed})).data as Map);
+  Future<Map<String,dynamic>> reviewWithdrawal({required int id,required String decision,required String note,required String paymentReference,required bool confirmed}) async => Map<String,dynamic>.from((await dio.post('admin/reviews/withdrawals/$id',data:{'decision':decision,'note':note,'paymentReference':paymentReference,'confirmed':confirmed})).data as Map);
+  Future<Map<String,dynamic>> adminAuditEvents() async => Map<String,dynamic>.from((await dio.get('admin/audit-events')).data as Map);
+  Future<Map<String,dynamic>> adminAnalytics() async => Map<String,dynamic>.from((await dio.get('admin/analytics')).data as Map);
+  Future<Map<String,dynamic>> adminSecurity() async => Map<String,dynamic>.from((await dio.get('admin/security')).data as Map);
   Future<Map<String, dynamic>> submitWithdrawal({required String currency, required String amount, required String bankId, required String note}) async => Map<String, dynamic>.from((await dio.post('withdrawal/requests', data: {'currency': currency, 'amount': amount, 'bank_account_id': bankId, 'member_note': note})).data as Map);
 
   Future<Map<String,dynamic>> profile() async => Map<String,dynamic>.from((await dio.get('profile')).data['member'] as Map);
