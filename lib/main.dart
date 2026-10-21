@@ -283,7 +283,12 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
-    if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [\n      featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),\n      tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),\n      tile('Refresh account status', 'Reload your latest overview and unread count.', Icons.refresh, dark, refresh),\n    ]);\n    if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
+    if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [
+      featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),
+      tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),
+      tile('Refresh account status', 'Reload your latest overview and unread count.', Icons.refresh, dark, refresh),
+    ]);
+    if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
       tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
       tile('Password recovery', 'Secure password reset.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
