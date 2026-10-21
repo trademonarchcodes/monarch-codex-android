@@ -272,6 +272,7 @@ class _ShellState extends State<Shell> {
         const SizedBox(height: 10), Text((m['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
       ])),
       const SizedBox(height: 12),
+      tile('Personal details & profile photo', 'Update your profile on the secure member site.', Icons.manage_accounts_outlined, dark, () => openSite('/profile')),
       tile('KYC Verification', 'Review identity verification status.', Icons.verified_user_outlined, dark, () => page('KYC Verification')),
       tile('Referrals', 'Personal link and referral count.', Icons.share_outlined, dark, () => page('Referrals')),
       tile('Settings', 'Appearance and account preferences.', Icons.settings_outlined, dark, () => page('Settings')),
