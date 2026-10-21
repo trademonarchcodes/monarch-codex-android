@@ -72,6 +72,20 @@ class MonarchApi {
     if(mime.isEmpty) throw Exception('Choose a JPG, PNG or WebP image.');
     return Map<String,dynamic>.from((await dio.post('profile/photo',data:{'mimeType':mime,'imageBase64':base64Encode(bytes)})).data as Map);
   }
+  Future<Map<String,dynamic>> notifications() async => Map<String,dynamic>.from((await dio.get('notifications')).data as Map);
+  Future<void> markNotificationRead(int id) async { await dio.post('notifications/$id/read'); }
+  Future<void> markAllNotificationsRead() async { await dio.post('notifications/read-all'); }
+  Future<Map<String,dynamic>> communityPosts() async => Map<String,dynamic>.from((await dio.get('community/posts')).data as Map);
+  Future<Map<String,dynamic>> createCommunityPost(String body) async => Map<String,dynamic>.from((await dio.post('community/posts',data:{'body':body,'type':'post'})).data as Map);
+  Future<Map<String,dynamic>> communityComments(int postId) async => Map<String,dynamic>.from((await dio.get('community/posts/$postId/comments')).data as Map);
+  Future<Map<String,dynamic>> createCommunityComment(int postId,String body) async => Map<String,dynamic>.from((await dio.post('community/posts/$postId/comments',data:{'body':body})).data as Map);
+  Future<Map<String,dynamic>> cooperativeStatus() async => Map<String,dynamic>.from((await dio.get('cooperative/status')).data as Map);
+  Future<Map<String,dynamic>> submitCooperativeConnection({required String registeredName,required String registeredEmail}) async => Map<String,dynamic>.from((await dio.post('cooperative/connections',data:{'registeredName':registeredName,'registeredEmail':registeredEmail})).data as Map);
+  Future<Map<String,dynamic>> socialLinks() async => Map<String,dynamic>.from((await dio.get('social-links')).data as Map);
+  Future<Map<String,dynamic>> adminCooperativeConnections() async => Map<String,dynamic>.from((await dio.get('admin/cooperative/connections')).data as Map);
+  Future<Map<String,dynamic>> reviewCooperativeConnection({required int id,required String decision,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/cooperative/connections/$id/review',data:{'decision':decision,'note':note})).data as Map);
+  Future<Map<String,dynamic>> adminPermissions() async => Map<String,dynamic>.from((await dio.get('admin/permissions')).data as Map);
+  Future<Map<String,dynamic>> saveAdminPermission({required int adminMemberId,required String category,required String level,required List<String> allowedActions}) async => Map<String,dynamic>.from((await dio.post('admin/permissions',data:{'adminMemberId':adminMemberId,'category':category,'level':level,'allowedActions':allowedActions})).data as Map);
   Future<Map<String,dynamic>> roles() async => Map<String,dynamic>.from((await dio.get('roles')).data as Map);
   Future<Map<String,dynamic>> requestRole({required int roleId,required String message}) async => Map<String,dynamic>.from((await dio.post('roles/request',data:{'roleId':roleId,'message':message})).data as Map);
   Future<Map<String,dynamic>> adminRoles() async => Map<String,dynamic>.from((await dio.get('admin/roles')).data as Map);
@@ -217,6 +231,51 @@ class _AuthPageState extends State<AuthPage> {
   String? requiredField(String? value) => value == null || value.trim().isEmpty ? 'This field is required' : null;
 }
 
+class NotificationsPage extends StatefulWidget {
+  const NotificationsPage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<NotificationsPage> createState()=>_NotificationsPageState();
+}
+class _NotificationsPageState extends State<NotificationsPage>{
+  late Future<Map<String,dynamic>> future; bool busy=false; String? error;
+  @override void initState(){super.initState();future=widget.api.notifications();}
+  void reload(){setState(()=>future=widget.api.notifications());}
+  Future<void> markAll() async {setState(()=>busy=true);try{await widget.api.markAllNotificationsRead();if(mounted){setState(()=>busy=false);reload();}}catch(e){if(mounted)setState(()=>{busy=false,error:'Could not update notifications. Please try again.'});}}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+    if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
+    if(snapshot.hasError)return ListView(padding:const EdgeInsets.all(20),children:[const Text('Notifications are temporarily unavailable.'),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Try again'))]);
+    final data=snapshot.data??{};final items=(data['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    return RefreshIndicator(color:gold,onRefresh:()async=>reload(),child:ListView(padding:const EdgeInsets.all(15),children:[
+      Row(children:[const Expanded(child:Text('IMPORTANT UPDATES',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1))),Text('${data['unreadCount']??0} unread'),const SizedBox(width:8),IconButton(onPressed:busy?null:markAll,tooltip:'Mark all as read',icon:const Icon(Icons.done_all,color:gold))]),
+      if(error!=null)Padding(padding:const EdgeInsets.all(8),child:Text(error!,style:const TextStyle(color:Colors.redAccent))),
+      if(items.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:32),child:Column(children:[Icon(Icons.notifications_none,size:44,color:muted),SizedBox(height:10),Text('You are all caught up.'),SizedBox(height:4),Text('Important account and review updates will appear here.',style:TextStyle(color:muted),textAlign:TextAlign.center)])),
+      ...items.map((item){final read=item['readAt']!=null;final id=(item['id'] as num?)?.toInt();return Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:Icon(read?Icons.notifications_none:Icons.notifications_active,color:read?muted:gold),title:Text((item['title']??'Account update').toString(),style:TextStyle(fontWeight:read?FontWeight.w500:FontWeight.w800)),subtitle:Padding(padding:const EdgeInsets.only(top:6),child:Text((item['body']??'').toString()+'\n'+(item['createdAt']??'').toString())),isThreeLine:true,trailing:read?null:IconButton(icon:const Icon(Icons.done,color:gold),tooltip:'Mark as read',onPressed:id==null?null:()async{try{await widget.api.markNotificationRead(id);if(mounted)reload();}catch(_){if(mounted)setState(()=>error='Could not mark this notification as read.');}})));}),
+    ]));
+  });
+}
+
+class CommunityPage extends StatefulWidget {
+  const CommunityPage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<CommunityPage> createState()=>_CommunityPageState();
+}
+class _CommunityPageState extends State<CommunityPage>{
+  final composer=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
+  @override void initState(){super.initState();future=widget.api.communityPosts();}
+  void reload()=>setState(()=>future=widget.api.communityPosts());
+  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState(()=>{sending=true,message=null});try{final r=await widget.api.createCommunityPost(body);composer.clear();if(mounted)setState(()=>{sending=false,message:(r['message']??'Post published.').toString(),success:true});reload();}catch(e){if(mounted)setState(()=>{sending=false,message:'Could not publish your post. Please try again.',success:false});}}
+  @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
+    const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+    const SizedBox(height:5),const Text('Share an update, ask a question, and connect with members.',style:TextStyle(color:muted)),
+    const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+      TextField(controller:composer,maxLines:4,maxLength:5000,decoration:const InputDecoration(hintText:'What would you like to share?',border:OutlineInputBorder())),
+      const SizedBox(height:8),Row(children:[if(message!=null)Expanded(child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent,fontSize:12))),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))])
+    ]))),
+    const SizedBox(height:14),Row(children:[const Expanded(child:Text('COMMUNITY FEED',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));if(snapshot.hasError)return const Padding(padding:EdgeInsets.all(12),child:Text('The community feed is not available yet. Please try again later.',style:TextStyle(color:muted)));final posts=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(posts.isEmpty)return const Padding(padding:EdgeInsets.all(22),child:Text('No posts yet. Be the first to start a conversation.',textAlign:TextAlign.center,style:TextStyle(color:muted)));return Column(children:posts.map((p)=>Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800)),const SizedBox(height:7),Text((p['body']??'').toString()),const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))])))).toList());})
+  ]);
+}
+
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
   final MonarchApi api;
@@ -256,7 +315,7 @@ class _ShellState extends State<Shell> {
           ])),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
-        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
+        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
@@ -323,11 +382,7 @@ class _ShellState extends State<Shell> {
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
-    if (p == 'Notifications') return ListView(padding: const EdgeInsets.all(15), children: [
-      featurePage(p, 'Your account updates', Icons.notifications_none_rounded, 'Unread notifications: ' + (data?['unreadNotifications'] ?? 0).toString() + '. Open the secure member dashboard to read and manage the full notification list.', dark),
-      tile('Open notifications', 'View your complete notification centre.', Icons.open_in_new, dark, () => openSite('/dashboard')),
-      tile('Refresh account status', 'Reload your latest overview and unread count.', Icons.refresh, dark, refresh),
-    ]);
+    if (p == 'Notifications') return NotificationsPage(api: widget.api, dark: dark);
     if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
       tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
