@@ -1,2 +1,27 @@
-# monarch-codex-android
-For And App 
+# Monarch Codex Android
+
+Flutter Android member app for Monarch Codex. The app uses the official logo, the approved six-item horizontal bottom navigation, a compact push sidebar, black-and-gold styling, UID visibility, and a dark/light appearance toggle.
+
+## Current implementation
+- Login and registration UI connected to the mobile API.
+- Persisted HTTP session cookies for sign-in continuity.
+- Overview reads the signed-in member, NGN/USD wallet balances, exchange-rate reference, KYC status, referral count/link, and unread notification count from the backend.
+- Sidebar includes KYC Verification, Referrals, Settings, and Help & Support.
+- Wallet money-movement actions still open the existing secure website until dedicated mobile workflows can be connected without bypassing review, KYC, or duplicate-credit safeguards.
+- Invest, Market, and Community screens are present; deeper mobile data integration is the next phase. The app does not fabricate balances, prices, earnings, or investment returns.
+
+## API
+The mobile API is implemented on the backend feature branch codex/mobile-api under /api/mobile. It must be merged and deployed to https://monarchcodex.online before sign-in from the APK can work. The API uses existing member, wallet, KYC, referral, and notification records. The Android app does not connect directly to MySQL.
+
+## Build APK
+The GitHub Actions workflow "Build Monarch Codex Android APK" generates the Android platform project and builds a release APK on pushes to main or codex/**.
+
+1. Open the repository's Actions tab.
+2. Open the latest successful "Build Monarch Codex Android APK" run.
+3. Download the monarch-codex-android-apk artifact.
+4. Extract app-release.apk and install it on a test Android device.
+
+The APK is a test build until the backend API branch is reviewed, merged, and deployed. Do not use it for real financial actions until the end-to-end tests are complete.
+
+## Official branding
+assets/images/monarch-codex-logo.svg is copied from the existing Monarch Codex website repository. Do not replace it with a generic crown or placeholder mark.
