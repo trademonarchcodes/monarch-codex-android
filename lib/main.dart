@@ -616,9 +616,16 @@ class _ShellState extends State<Shell> {
       tile('Online status privacy', 'Choose whether members can see your online and last-seen status.', Icons.visibility_outlined, dark, () => page('Presence Privacy')),
     ]);
     if (p == 'Help & Support') return ListView(padding: const EdgeInsets.all(15), children: [
-      featurePage(p, 'We are here to help', Icons.support_agent, 'For account access, verification or payment questions, contact official Monarch Codex support.', dark),
-      tile('Email support', 'support@monarchcodex.online', Icons.email_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online'))),
-      tile('Open website', 'Visit Monarch Codex online.', Icons.open_in_new, dark, () => openSite('/')),
+      featurePage(p, 'How can we help you?', Icons.support_agent, 'Choose the topic that matches your question. For your safety, never share your password, PIN, or one-time verification code with anyone.', dark),
+      tile('Contact official support', 'Email support@monarchcodex.online. Include your Monarch UID and a short description; never include your password or OTP.', Icons.email_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Member%20Support'))),
+      tile('Account access & password recovery', 'Get help signing in or securely reset your password.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
+      tile('KYC & account verification', 'Check your verification status or open the KYC section.', Icons.verified_user_outlined, dark, () => page('KYC Verification')),
+      tile('Deposits & withdrawals', 'Find payment instructions or check your request status.', Icons.account_balance_wallet_outlined, dark, () => page(null, 1)),
+      tile('Investments & market', 'Open your investment plans, portfolio, and market information.', Icons.trending_up, dark, () => page(null, 2)),
+      tile('Referrals & Monarch UID', 'Get help sharing your referral details and connecting with members.', Icons.share_outlined, dark, () => page('Referrals')),
+      tile('Community & social links', 'Open the member community or official Monarch Codex channels.', Icons.groups_outlined, dark, () => page(null, 4)),
+      tile('Report a problem / send feedback', 'Submit a bug report, suggestion, or improvement and track its status.', Icons.feedback_outlined, dark, () => page('Feedback & Suggestions')),
+      tile('Visit the website', 'Open Monarch Codex online for additional account pages.', Icons.open_in_new, dark, () => openSite('/')),
     ]);
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
