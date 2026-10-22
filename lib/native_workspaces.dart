@@ -584,6 +584,11 @@ class _ReferralsPageState extends State<ReferralsPage>{
         Text((d['referralCount']??rows.length).toString(),style:const TextStyle(fontSize:30,fontWeight:FontWeight.w900)),
         const SizedBox(height:12),const Text('YOUR INVITE LINK',style:TextStyle(color:muted,fontWeight:FontWeight.w800,fontSize:10)),const SizedBox(height:6),
         SelectableText(link,style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
+        const SizedBox(height:8),
+        Wrap(spacing:8,children:[
+          OutlinedButton.icon(onPressed:link.isEmpty?null:(){Clipboard.setData(ClipboardData(text:link));ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Referral link copied')));},icon:const Icon(Icons.link),label:const Text('Copy referral link')),
+          OutlinedButton.icon(onPressed:((d['uid']??d['monarchUid']??'').toString().isEmpty)?null:(){Clipboard.setData(ClipboardData(text:(d['uid']??d['monarchUid']).toString()));ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Monarch UID copied')));},icon:const Icon(Icons.copy),label:const Text('Copy Monarch UID')),
+        ]),
       ])),
       const SizedBox(height:14),Row(children:[const Expanded(child:Text('Referral history',style:TextStyle(fontSize:17,fontWeight:FontWeight.w900))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
       if(rows.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:20),child:Center(child:Text('No referred members are recorded yet.',style:TextStyle(color:muted)))),
