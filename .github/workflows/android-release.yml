@@ -31,6 +31,14 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Generate Android scaffolding
+        run: flutter create --overwrite --platforms=android --project-name monarch_codex --org online.monarchcodex .
+
+      - name: Enable network access in release APK
+        run: |
+          sed -i '/<manifest /a\\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml
+
       - name: Install dependencies
         run: flutter pub get
 
