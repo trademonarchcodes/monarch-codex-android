@@ -43,7 +43,7 @@ jobs:
         env:
           APP_VERSION: ${{ steps.app_version.outputs.version }}
         run: |
-          node -e 'const fs=require("node:fs"); const version=process.env.APP_VERSION; if(!/^\\d+\\.\\d+\\.\\d+\\+\\d+$/.test(version||"")) process.exit(1); fs.writeFileSync("build/app/outputs/flutter-apk/app-update.json", JSON.stringify({version, releaseNotes:"Monarch Codex Android update. Native investment purchase and clearer update diagnostics."})+"\\n");'
+          node -e 'const fs=require("node:fs"); const version=process.env.APP_VERSION; if(!/^\d+\.\d+\.\d+\+\d+$/.test(version||"")) process.exit(1); fs.writeFileSync("build/app/outputs/flutter-apk/app-update.json", JSON.stringify({version, releaseNotes:"Monarch Codex Android update. Native investment purchase and clearer update diagnostics."})+"\n");'
       - uses: actions/upload-artifact@v4
         with:
           name: monarch-codex-android-apk
