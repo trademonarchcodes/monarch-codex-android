@@ -361,7 +361,7 @@ class _MarketPageState extends State<MarketPage> {
           final selected = quoteMap[currency] is Map ? Map<String, dynamic>.from(quoteMap[currency] as Map) : <String, dynamic>{};
           final change = double.tryParse((selected['percent_change_24h'] ?? '').toString());
           return Card(color: widget.dark ? panel : Colors.white, child: ListTile(
-            leading: CircleAvatar(backgroundColor: gold.withValues(alpha: .12), child: Text((coin['symbol'] ?? '?').toString().toUpperCase().substring(0, ((coin['symbol'] ?? '?').toString().length).clamp(1, 3)), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))),
+            leading: CircleAvatar(backgroundColor: gold.withValues(alpha: .12), child: Text((coin['symbol'] ?? '?').toString().toUpperCase().substring(0, ((coin['symbol'] ?? '?').toString().length).clamp(1, 3).toInt()), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))),
             title: Text((coin['name'] ?? 'Crypto asset').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
             subtitle: Text((coin['symbol'] ?? '').toString().toUpperCase() + (change == null ? '' : ' · 24h ${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%'), style: TextStyle(color: change == null ? muted : change >= 0 ? Colors.green : Colors.redAccent, fontSize: 11)),
             trailing: Text(price(selected['price']), style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -369,7 +369,7 @@ class _MarketPageState extends State<MarketPage> {
         }),
         if (!snapshot.hasError && mode == 'forex') ...[
           if (rateRows.every((r) => r['value'] == null)) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('FX reference rates are temporarily unavailable.'))),
-          ...rateRows.where((r) => r['value'] != null).map((r) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(leading: const Icon(Icons.currency_exchange, color: gold), title: Text(r['pair']!, style: const TextStyle(fontWeight: FontWeight.w900)), trailing: Text(price(r['value']), style: const TextStyle(fontWeight: FontWeight.w900))))),
+          ...rateRows.where((r) => r['value'] != null).map((r) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(leading: const Icon(Icons.currency_exchange, color: gold), title: Text(r['pair']!.toString(), style: const TextStyle(fontWeight: FontWeight.w900)), trailing: Text(price(r['value']), style: const TextStyle(fontWeight: FontWeight.w900))))),
         ],
         const SizedBox(height: 12),
         Text('Source: ${data['source'] ?? 'Monarch Codex market feed'}', style: const TextStyle(color: muted, fontSize: 11)),
