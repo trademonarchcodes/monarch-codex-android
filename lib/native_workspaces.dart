@@ -261,6 +261,7 @@ class _AdminShellState extends State<AdminShell>{
   Future<void> openSection(int index) async {
     if(index==0){scaffoldKey.currentState?.closeDrawer();setState(()=>selected=0);reload();return;}
     if(index==4){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
+     if(index==13){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>AdminMembersPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
     scaffoldKey.currentState?.closeDrawer();
     setState(()=>selected=index);
     final dark=Theme.of(context).brightness==Brightness.dark;
@@ -331,6 +332,7 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(2,Icons.receipt_long_outlined,'Deposits'),
             _navItem(3,Icons.payments_outlined,'Withdrawals'),
             _navItem(4,Icons.groups_outlined,'Members & roles'),
+             _navItem(13,Icons.manage_accounts_outlined,'Manage Members'),
             _navItem(5,Icons.history_outlined,'Audit history'),
             _navItem(6,Icons.query_stats_outlined,'Analytics'),
             _navItem(7,Icons.shield_outlined,'Security centre'),
