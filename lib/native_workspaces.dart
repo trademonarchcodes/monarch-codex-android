@@ -145,7 +145,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Review member suggestions, bug reports and improvement requests in one queue. Update each item's status and leave a clear note; members receive a notification and can track the decision in their feedback history.',
+              'Review member suggestions, bug reports and improvement requests in one queue. Update each item’s status and leave a clear note; members receive a notification and can track the decision in their feedback history.',
               style: TextStyle(color: muted),
             ),
             if (message != null)
@@ -734,7 +734,7 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
       const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-      const SizedBox(height:6),const Text('Check the member's submitted registration name and email with the Cooperative administrator. Approve only after the registration is confirmed; reject with a clear reason if it cannot be verified. Never ask for passwords or OTPs.',style:TextStyle(color:muted)),
+      const SizedBox(height:6),const Text('Check the member’s submitted registration name and email with the Cooperative administrator. Approve only after the registration is confirmed; reject with a clear reason if it cannot be verified. Never ask for passwords or OTPs.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No pending connection requests.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
       ...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController());return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
