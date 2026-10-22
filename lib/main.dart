@@ -670,12 +670,30 @@ class _ShellState extends State<Shell> {
   );
 
   Widget balanceCard(double ngn, double usd, double rate) {
-    final convertedNgn = rate > 0 ? ngn + (usd * rate) : ngn;
-    final convertedUsd = rate > 0 ? usd + (ngn / rate) : usd;
     final canConvert = rate > 0;
-    final shownValue = balanceInUsd ? convertedUsd : convertedNgn;
+    final shownValue = balanceInUsd ? (canConvert ? usd + ngn / rate : usd) : (canConvert ? ngn + usd * rate : ngn);
     final shownCurrency = balanceInUsd ? 'USD' : 'NGN';
-    final shownSymbol = balanceInUsd ? '\
+    final shownSymbol = balanceInUsd ? 'USD ' : '₦';
+    return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFF6D5920)),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF28200D), Color(0xFF151411), Color(0xFF101012)]),
+      boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 22, offset: Offset(0, 9))],
+    ), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Row(children: [Icon(Icons.account_balance_wallet_outlined, color: gold, size: 18), SizedBox(width: 8), Expanded(child: Text('TOTAL WALLET BALANCE', style: TextStyle(color: Color(0xFFD6CBA8), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)))]),
+      const SizedBox(height: 12),
+      Text((balanceInUsd && !canConvert) ? 'FX unavailable' : shownSymbol + shownValue.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900, letterSpacing: -.7)),
+      const SizedBox(height: 4),
+      Text('Combined wallet value · ' + shownCurrency, style: const TextStyle(color: Color(0xFFE0C96D), fontSize: 12, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 12),
+      Wrap(spacing: 8, children: [
+        ChoiceChip(label: const Text('₦ Naira'), selected: !balanceInUsd, onSelected: (_) { setState(() => balanceInUsd = false); }),
+        ChoiceChip(label: const Text('USD Dollars'), selected: balanceInUsd, onSelected: (_) { setState(() => balanceInUsd = true); }),
+      ]),
+      if (!canConvert) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Exchange-rate reference unavailable. Currency conversion is paused until a rate is available.', style: TextStyle(color: muted, fontSize: 10))),
+      const SizedBox(height: 8),
+      const Text('Display conversion only. Your actual NGN and USD account balances are unchanged.', style: TextStyle(color: muted, fontSize: 10)),
+    ]));
+  }
 
   Widget stat(String title, String value, IconData icon, bool dark) => Container(
     constraints: const BoxConstraints(minHeight: 98), padding: const EdgeInsets.all(12), decoration: card(dark),
