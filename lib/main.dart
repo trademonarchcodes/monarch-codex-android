@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -48,6 +49,8 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
   Future<Map<String, dynamic>> investments() async =>
       Map<String, dynamic>.from((await dio.get('investments')).data as Map);
+  Future<Map<String,dynamic>> purchaseInvestment({required int packageId,required String idempotencyKey}) async =>
+      Map<String,dynamic>.from((await dio.post('investments/$packageId/purchase',data:{'idempotencyKey':idempotencyKey})).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
@@ -301,6 +304,7 @@ class _NotificationsPageState extends State<NotificationsPage>{
   });
 }
 
+
 class InvestmentsPage extends StatefulWidget {
   const InvestmentsPage({super.key, required this.api, required this.dark});
   final MonarchApi api;
@@ -310,11 +314,67 @@ class InvestmentsPage extends StatefulWidget {
 
 class _InvestmentsPageState extends State<InvestmentsPage> {
   late Future<Map<String, dynamic>> future;
+  bool purchasing=false;
   @override void initState() { super.initState(); future = widget.api.investments(); }
   void reload() => setState(() => future = widget.api.investments());
   String money(dynamic currency, dynamic amount) {
     final value = double.tryParse((amount ?? '0').toString()) ?? 0;
     return '${currency ?? ''} ${value.toStringAsFixed(2)}';
+  }
+  String idempotencyKey(){
+    final random=math.Random.secure();
+    final bytes=List<int>.generate(16,(_)=>random.nextInt(256));
+    bytes[6]=(bytes[6]&0x0f)|0x40;
+    bytes[8]=(bytes[8]&0x3f)|0x80;
+    final hex=bytes.map((b)=>b.toRadixString(16).padLeft(2,'0')).join();
+    return '${hex.substring(0,8)}-${hex.substring(8,12)}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}';
+  }
+  Future<void> buy(Map<String,dynamic> p) async {
+    if(purchasing)return;
+    final price=double.tryParse((p['price']??'0').toString())??0;
+    final fee=price*0.01;
+    final currency=(p['currency']??'').toString();
+    final accepted=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Confirm investment purchase'),
+      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text((p['name']??'Investment package').toString(),style:const TextStyle(fontWeight:FontWeight.w900)),
+        const SizedBox(height:10),
+        Text('Package price: ${money(currency,price)}'),
+        Text('Service fee (1%): ${money(currency,fee)}'),
+        const Divider(),
+        Text('Package total: ${money(currency,price+fee)}',style:const TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:16)),
+        const SizedBox(height:10),
+        const Text('The server will verify your approved KYC status and available wallet balance before charging you. The purchase will be recorded in your portfolio and transaction history.',style:TextStyle(color:muted,fontSize:12,height:1.45)),
+        if((p['terms']??'').toString().trim().isNotEmpty)...[
+          const SizedBox(height:10),const Text('Terms',style:TextStyle(color:gold,fontWeight:FontWeight.w800)),Text(p['terms'].toString(),style:const TextStyle(fontSize:12)),
+        ],
+      ])),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
+        FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('CONFIRM PURCHASE')),
+      ],
+    ));
+    if(accepted!=true)return;
+    setState(()=>purchasing=true);
+    try{
+      final id=(p['id'] as num).toInt();
+      final result=await widget.api.purchaseInvestment(packageId:id,idempotencyKey:idempotencyKey());
+      if(!mounted)return;
+      final investment=result['investment'] is Map?Map<String,dynamic>.from(result['investment'] as Map):<String,dynamic>{};
+      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
+        title:const Text('Purchase recorded'),
+        content:Text((result['message']??'Your investment purchase was recorded.') .toString()+
+          '\n\nReference: ${investment['reference']??'—'}\nPackage: ${investment['packageName']??p['name']??'—'}\nTotal charged: ${money(investment['currency']??currency,investment['totalCharged']??(price+fee))}\nStatus: ${(investment['status']??'active').toString().toUpperCase()}'),
+        actions:[FilledButton(onPressed:()=>Navigator.pop(ctx),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('DONE'))],
+      ));
+      reload();
+    }catch(e){
+      if(!mounted)return;
+      var message='Purchase could not be completed. No funds should be deducted unless the server confirms the transaction.';
+      if(e is DioException){final data=e.response?.data;if(data is Map&&data['message']!=null)message=data['message'].toString();}
+      else message=e.toString().replaceFirst('Exception: ','');
+      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Purchase not completed'),content:Text(message),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('OK'))]));
+    }finally{if(mounted)setState(()=>purchasing=false);}
   }
   @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: future,
@@ -333,12 +393,14 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
       return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
         const Text('INVESTMENT OPPORTUNITIES', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
         const SizedBox(height: 5),
-        const Text('Review the currently active packages. Package details are read from Monarch Codex; no projected returns are invented.', style: TextStyle(color: muted)),
+        const Text('Review active packages and purchase securely inside the app. Availability, fees, KYC and wallet balances are verified by the database-backed API.', style: TextStyle(color: muted)),
         const SizedBox(height: 12),
         if (packages.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No active investment packages are available right now.', textAlign: TextAlign.center))),
         ...packages.map((p) {
           final terms = (p['terms'] ?? '').toString().trim();
           final description = (p['description'] ?? '').toString().trim();
+          final price=double.tryParse((p['price']??'0').toString())??0;
+          final fee=price*0.01;
           return Card(color: widget.dark ? panel : Colors.white, child: ExpansionTile(
             leading: const Icon(Icons.workspace_premium, color: gold),
             title: Text((p['name'] ?? 'Investment package').toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -348,16 +410,13 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
               if (description.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(description)),
               if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
               const SizedBox(height: 8),
-              const Align(alignment: Alignment.centerLeft, child: Text('Review the terms before investing. Secure purchase confirmation is handled by the official investment workflow.', style: TextStyle(color: muted, fontSize: 11))),
+              Text('Service fee (1%): '+money(p['currency'],fee),style:const TextStyle(color:muted,fontSize:12)),
+              Text('Total before any currency conversion: '+money(p['currency'],price+fee),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: () async {
-                  final uri = Uri.parse('$site/investments');
-                  final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  if (!opened && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the secure investment checkout. Please try again.')));
-                },
+                onPressed: purchasing ? null : () => buy(p),
                 icon: const Icon(Icons.shopping_bag_outlined),
-                label: const Text('BUY AN INVESTMENT PACKAGE'),
+                label: Text(purchasing?'PROCESSING…':'BUY IN APP'),
                 style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)),
               )),
             ],
