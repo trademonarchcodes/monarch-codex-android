@@ -44,6 +44,8 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.post('auth/register', data: data)).data as Map);
   Future<Map<String, dynamic>> overview() async =>
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
+  Future<Map<String, dynamic>> investments() async =>
+      Map<String, dynamic>.from((await dio.get('investments')).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
@@ -281,6 +283,71 @@ class _NotificationsPageState extends State<NotificationsPage>{
   });
 }
 
+class InvestmentsPage extends StatefulWidget {
+  const InvestmentsPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<InvestmentsPage> createState() => _InvestmentsPageState();
+}
+
+class _InvestmentsPageState extends State<InvestmentsPage> {
+  late Future<Map<String, dynamic>> future;
+  @override void initState() { super.initState(); future = widget.api.investments(); }
+  void reload() => setState(() => future = widget.api.investments());
+  String money(dynamic currency, dynamic amount) {
+    final value = double.tryParse((amount ?? '0').toString()) ?? 0;
+    return '${currency ?? ''} ${value.toStringAsFixed(2)}';
+  }
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: gold));
+      if (snapshot.hasError) return ListView(padding: const EdgeInsets.all(20), children: [
+        const Icon(Icons.trending_up, color: gold, size: 42),
+        const SizedBox(height: 10),
+        const Text('Investment information is temporarily unavailable. Your wallet has not been changed.'),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: reload, child: const Text('Retry')),
+      ]);
+      final data = snapshot.data ?? {};
+      final packages = (data['packages'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final portfolio = (data['portfolio'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
+        const Text('INVESTMENT OPPORTUNITIES', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+        const SizedBox(height: 5),
+        const Text('Review the currently active packages. Package details are read from Monarch Codex; no projected returns are invented.', style: TextStyle(color: muted)),
+        const SizedBox(height: 12),
+        if (packages.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No active investment packages are available right now.', textAlign: TextAlign.center))),
+        ...packages.map((p) {
+          final terms = (p['terms'] ?? '').toString().trim();
+          final description = (p['description'] ?? '').toString().trim();
+          return Card(color: widget.dark ? panel : Colors.white, child: ExpansionTile(
+            leading: const Icon(Icons.workspace_premium, color: gold),
+            title: Text((p['name'] ?? 'Investment package').toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(money(p['currency'], p['price']) + ' · ' + ((p['durationDays'] == null || p['durationDays'].toString().isEmpty) ? 'Flexible duration' : '${p['durationDays']} days'), style: const TextStyle(color: gold, fontWeight: FontWeight.w800))),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              if (description.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(description)),
+              if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
+              const SizedBox(height: 8),
+              const Align(alignment: Alignment.centerLeft, child: Text('Review the terms before investing. No purchase or wallet change is performed from this view.', style: TextStyle(color: muted, fontSize: 11))),
+            ],
+          ));
+        }),
+        const SizedBox(height: 20),
+        Row(children: [const Expanded(child: Text('MY PORTFOLIO', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1))), IconButton(onPressed: reload, icon: const Icon(Icons.refresh, color: gold), tooltip: 'Refresh investments')]),
+        if (portfolio.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Your recorded investments will appear here once you have an investment on your account.', textAlign: TextAlign.center))),
+        ...portfolio.map((p) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(
+          leading: const Icon(Icons.account_balance_wallet_outlined, color: gold),
+          title: Text((p['packageName'] ?? 'Investment').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text('Principal: ' + money(p['currency'], p['principalAmount']) + '\nTotal charged: ' + money(p['currency'], p['totalCharged']) + '\nStatus: ' + (p['status'] ?? 'unknown').toString().toUpperCase() + '\nStarted: ' + (p['startsAt'] ?? '—').toString() + ((p['maturesAt'] == null) ? '' : '\nMatures: ' + p['maturesAt'].toString()))),
+          isThreeLine: true,
+        ))),
+      ]));
+    },
+  );
+}
+
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key,required this.api,required this.dark});
   final MonarchApi api; final bool dark;
@@ -362,7 +429,16 @@ class _ShellState extends State<Shell> {
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final title = special ?? names[tab];
-    return Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (menu) { setState(() => menu = false); return; }
+        if (special != null) { setState(() => special = null); return; }
+        if (tab != 0) { setState(() => tab = 0); return; }
+        confirmAppExit(context);
+      },
+      child: Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
       Positioned.fill(child: AnimatedPadding(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, padding: EdgeInsets.only(left: menu ? 214 : 0), child: SizedBox(width: MediaQuery.sizeOf(context).width, child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10), child: Row(children: [
           IconButton(onPressed: () => setState(() => menu = !menu), icon: Icon(menu ? Icons.close : Icons.menu, color: gold)),
@@ -374,11 +450,11 @@ class _ShellState extends State<Shell> {
           ])),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
-        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
+        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 2 ? InvestmentsPage(api: widget.api, dark: dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], 'Market information', icons[tab], 'Live market quotes are not displayed until a verified quote provider is connected. No placeholder prices are shown as real market data.', dark)),
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
-    ])));
+    ]))));
   }
 
   Widget overviewPage(bool dark) {
