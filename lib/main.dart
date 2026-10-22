@@ -457,10 +457,34 @@ class _CommunityPageState extends State<CommunityPage>{
         Row(children:[const Icon(Icons.account_circle_outlined,color:gold,size:20),const SizedBox(width:7),Expanded(child:Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800))),Container(width:7,height:7,decoration:BoxDecoration(color:(p['authorOnline']==true||p['authorOnline']==1)?Colors.green:muted,shape:BoxShape.circle)),const SizedBox(width:5),Flexible(child:Text(presenceLabel(p),style:const TextStyle(color:muted,fontSize:10),overflow:TextOverflow.ellipsis))]),
         const SizedBox(height:7),Text((p['body']??'').toString()),
         if(p['hasImage']==true||p['hasImage']==1)Padding(padding:const EdgeInsets.only(top:10),child:FutureBuilder<Uint8List>(future:widget.api.communityImage((p['id'] as num).toInt()),builder:(context,s)=>s.hasData?ClipRRect(borderRadius:BorderRadius.circular(12),child:Image.memory(s.data!,fit:BoxFit.cover)):s.hasError?const SizedBox.shrink():const SizedBox(height:90,child:Center(child:CircularProgressIndicator(strokeWidth:2,color:gold))))),
-        const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))
+        const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10)),
+        Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed:()=>showDialog<void>(context:context,builder:(_)=>CommunityCommentsDialog(api:widget.api,postId:(p['id'] as num).toInt(),dark:widget.dark)),icon:const Icon(Icons.mode_comment_outlined,color:gold,size:18),label:Text('Comments (${p['commentCount']??0})'))),
       ])))).toList());
     })
   ]);
+}
+
+class CommunityCommentsDialog extends StatefulWidget {
+  const CommunityCommentsDialog({super.key,required this.api,required this.postId,required this.dark});
+  final MonarchApi api;final int postId;final bool dark;
+  @override State<CommunityCommentsDialog> createState()=>_CommunityCommentsDialogState();
+}
+class _CommunityCommentsDialogState extends State<CommunityCommentsDialog>{
+  final controller=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? error;
+  @override void initState(){super.initState();future=widget.api.communityComments(widget.postId);}
+  @override void dispose(){controller.dispose();super.dispose();}
+  void reload()=>setState(()=>future=widget.api.communityComments(widget.postId));
+  String presence(Map<String,dynamic> p){if(p['authorOnline']==true||p['authorOnline']==1)return 'Online now';final raw=p['authorLastSeen'];if(raw==null)return 'Offline';final dt=DateTime.tryParse(raw.toString());if(dt==null)return 'Offline';final minutes=DateTime.now().difference(dt.toLocal()).inMinutes;return minutes<1?'Last seen just now':minutes<60?'Last seen ${minutes}m ago':'Offline';}
+  Future<void> send()async{final body=controller.text.trim();if(body.isEmpty||sending)return;setState(()=>sending=true);try{await widget.api.createCommunityComment(widget.postId,body);controller.clear();if(mounted)setState(()=>error=null);reload();}catch(e){if(mounted)setState(()=>error='Could not post your comment. Check your connection and try again.');}finally{if(mounted)setState(()=>sending=false);}}
+  @override Widget build(BuildContext context)=>AlertDialog(
+    title:const Text('Community comments'),
+    content:SizedBox(width:480,child:Column(mainAxisSize:MainAxisSize.min,children:[
+      Flexible(child:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Padding(padding:EdgeInsets.all(20),child:CircularProgressIndicator(color:gold));if(s.hasError)return Column(children:[const Text('Comments could not be loaded.'),TextButton(onPressed:reload,child:const Text('Retry'))]);final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(items.isEmpty)return const Padding(padding:EdgeInsets.all(12),child:Text('Be the first to comment.'));return ListView(shrinkWrap:true,children:items.map((c)=>ListTile(dense:true,contentPadding:EdgeInsets.zero,leading:const Icon(Icons.account_circle_outlined,color:gold),title:Row(children:[Expanded(child:Text((c['authorName']??'Member').toString(),style:const TextStyle(fontWeight:FontWeight.w800))),Text(presence(c),style:const TextStyle(fontSize:10,color:muted))]),subtitle:Text((c['body']??'').toString()))).toList());})),
+      const SizedBox(height:8),TextField(controller:controller,maxLength:2000,maxLines:2,decoration:const InputDecoration(hintText:'Write a comment…',border:OutlineInputBorder())),
+      if(error!=null)Align(alignment:Alignment.centerLeft,child:Text(error!,style:const TextStyle(color:Colors.redAccent,fontSize:12)))
+    ])),
+    actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Close')),FilledButton(onPressed:sending?null:send,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(sending?'Posting…':'Comment'))],
+  );
 }
 
 class FeedbackPage extends StatefulWidget {
