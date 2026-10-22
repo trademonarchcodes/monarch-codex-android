@@ -429,7 +429,16 @@ class _ShellState extends State<Shell> {
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final title = special ?? names[tab];
-    return Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (menu) { setState(() => menu = false); return; }
+        if (special != null) { setState(() => special = null); return; }
+        if (tab != 0) { setState(() => tab = 0); return; }
+        confirmAppExit(context);
+      },
+      child: Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
       Positioned.fill(child: AnimatedPadding(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, padding: EdgeInsets.only(left: menu ? 214 : 0), child: SizedBox(width: MediaQuery.sizeOf(context).width, child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10), child: Row(children: [
           IconButton(onPressed: () => setState(() => menu = !menu), icon: Icon(menu ? Icons.close : Icons.menu, color: gold)),
@@ -445,7 +454,7 @@ class _ShellState extends State<Shell> {
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
-    ])));
+    ]))));
   }
 
   Widget overviewPage(bool dark) {
