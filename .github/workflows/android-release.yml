@@ -1,0 +1,68 @@
+name: Android APK Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: monarch-codex-android-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Prepare APK and checksum
+        id: release_info
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/^version:[[:space:]]*//p' pubspec.yaml | tr -d '\"' | head -n1)"
+          test -n "$VERSION"
+          mkdir -p release-output
+          cp build/app/outputs/flutter-apk/app-release.apk release-output/app-release.apk
+          cd release-output
+          sha256sum app-release.apk > app-release.apk.sha256
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish latest APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Monarch Codex Android — Latest
+          body: |
+            Version: ${{ steps.release_info.outputs.version }}
+
+            Official Android release built from commit ${{ github.sha }}.
+            Verify the SHA-256 checksum before installation.
+          files: |
+            release-output/app-release.apk
+            release-output/app-release.apk.sha256
+          overwrite_files: true
+          make_latest: true
+          fail_on_unmatched_files: true
