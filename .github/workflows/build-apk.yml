@@ -185,15 +185,14 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-apk
-          name: Monarch Codex Android — Latest APK
+          tag_name: android-build-${{ github.run_number }}
+          name: Monarch Codex Android build ${{ github.run_number }}
           body: |
             Version: ${{ steps.app_version.outputs.version }}
 
-            Automatically updated release containing the latest successfully built Monarch Codex Android APK. The SHA-256 checksum is published beside the APK.
+            Archived build artifact for this workflow run. The stable latest-apk release is maintained by the primary Flutter APK workflow.
           prerelease: true
           files: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/app-release.apk.sha256
-          overwrite_files: true
           fail_on_unmatched_files: true
