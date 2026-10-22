@@ -1,7 +1,7 @@
 name: Flutter checks and Android APK
 on:
   push:
-    branches: [main, "codex/**"]
+    branches: [main, "codex/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
