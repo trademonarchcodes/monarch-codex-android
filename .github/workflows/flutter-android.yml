@@ -18,7 +18,7 @@ jobs:
           cache: true
       - run: flutter --version
       # Generate Android scaffolding, then install the official Monarch Codex launcher artwork.
-      - run: flutter create --overwrite --platforms=android --project-name monarch_codex --org online.monarchcodex .
+      - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
       # Release builds need INTERNET in the main manifest; Flutter's generated debug manifest alone is not enough.
       - name: Enable network access in release APK
         run: |
