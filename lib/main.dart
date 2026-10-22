@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
@@ -18,6 +19,15 @@ const panel = Color(0xFF151518);
 const muted = Color(0xFFAAA7AF);
 const site = 'https://monarchcodex.online';
 const apiRoot = 'https://monarchcodex.online/api/mobile';
+
+String _newIdempotencyKey() {
+  final random = math.Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20, 32)}';
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +58,8 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
   Future<Map<String, dynamic>> investments() async =>
       Map<String, dynamic>.from((await dio.get('investments')).data as Map);
+  Future<Map<String, dynamic>> purchaseInvestment({required int packageId, required String idempotencyKey}) async =>
+      Map<String, dynamic>.from((await dio.post('investments/$packageId/purchase', data: {'idempotencyKey': idempotencyKey})).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
@@ -316,6 +328,49 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
     final value = double.tryParse((amount ?? '0').toString()) ?? 0;
     return '${currency ?? ''} ${value.toStringAsFixed(2)}';
   }
+  Future<void> purchasePackage(Map<String, dynamic> package) async {
+    final packageId = int.tryParse((package['id'] ?? '').toString());
+    if (packageId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This package is missing its identifier. Refresh and try again.')));
+      return;
+    }
+    final currency = (package['currency'] ?? '').toString();
+    final price = double.tryParse((package['price'] ?? '0').toString()) ?? 0;
+    final fee = price * 0.01;
+    final total = price + fee;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirm investment purchase'),
+        content: Text('Package: ${package['name'] ?? 'Investment package'}\\nPrice: ${money(currency, price)}\\n1% purchase fee: ${money(currency, fee)}\\nTotal package cost: ${money(currency, total)}\\n\\nYour wallet will be charged only after the server verifies your approved identity status and available balance. This action cannot be repeated with the same purchase request.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink), child: const Text('Confirm purchase')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      final result = await widget.api.purchaseInvestment(packageId: packageId, idempotencyKey: _newIdempotencyKey());
+      if (!mounted) return;
+      final message = (result['message'] ?? 'Investment purchase recorded.').toString();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      reload();
+    } on DioException catch (error) {
+      if (!mounted) return;
+      final data = error.response?.data;
+      final message = data is Map && data['message'] is String
+          ? data['message'] as String
+          : error.response?.statusCode == 401
+              ? 'Your session expired. Sign in again before purchasing.'
+              : 'The purchase could not be completed. No funds were deducted unless the server confirms a successful purchase. Refresh and check your portfolio before retrying.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not complete the purchase. Refresh your portfolio before retrying; do not submit repeated purchases.')));
+    }
+  }
+
   @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: future,
     builder: (context, snapshot) {
@@ -351,11 +406,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
               const Align(alignment: Alignment.centerLeft, child: Text('Review the terms before investing. Secure purchase confirmation is handled by the official investment workflow.', style: TextStyle(color: muted, fontSize: 11))),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: FilledButton.icon(
-                onPressed: () async {
-                  final uri = Uri.parse('$site/investments');
-                  final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  if (!opened && context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open the secure investment checkout. Please try again.')));
-                },
+                onPressed: () => purchasePackage(Map<String, dynamic>.from(p)),
                 icon: const Icon(Icons.shopping_bag_outlined),
                 label: const Text('BUY AN INVESTMENT PACKAGE'),
                 style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)),
