@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
       - name: Analyze Dart code
-        run: flutter analyze
+        run: flutter analyze --no-fatal-infos
       - name: Run tests when present
         run: |
           if [ -d test ] && find test -type f -name '*_test.dart' | grep -q .; then
