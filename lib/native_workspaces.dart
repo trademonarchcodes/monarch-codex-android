@@ -45,17 +45,198 @@ Future<void> _openAdminRoute(String route) async {
 }
 
 class AdminFeedbackPage extends StatefulWidget {
-  const AdminFeedbackPage({super.key,required this.api,required this.dark});
-  final MonarchApi api;final bool dark;
-  @override State<AdminFeedbackPage> createState()=>_AdminFeedbackPageState();
+  const AdminFeedbackPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+
+  @override
+  State<AdminFeedbackPage> createState() => _AdminFeedbackPageState();
 }
-class _AdminFeedbackPageState extends State<AdminFeedbackPage>{
-  late Future<Map<String,dynamic>> future;final notes=<int,TextEditingController>{};bool busy=false;String? message;
-  @override void initState(){super.initState();future=widget.api.adminFeedback();}
-  @override void dispose(){for(final c in notes.values){c.dispose();}super.dispose();}
-  void reload()=>setState(()=>future=widget.api.adminFeedback());
-  Future<void> review(Map<String,dynamic> item,String status)async{final id=(item['id'] as num).toInt();setState(()=>busy=true);try{await widget.api.reviewAdminFeedback(id:id,status:status,note:notes.putIfAbsent(id,()=>TextEditingController()).text.trim());if(mounted){setState((){busy=false;message='Feedback status updated.';});reload();}}catch(_){if(mounted)setState((){busy=false;message='Could not update feedback. Check your permissions and try again.';});}}
-  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));if(s.hasError)return ListView(padding:const EdgeInsets.all(16),children:[const Text('Member feedback could not be loaded.'),FilledButton(onPressed:reload,child:const Text('Retry'))]);final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();return ListView(padding:const EdgeInsets.all(15),children:[const Text('MEMBER FEEDBACK',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:8),const Text('Review requests, bugs and improvement ideas. Members see status changes in their feedback history.',style:TextStyle(color:muted)),if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),if(items.isEmpty)const Padding(padding:EdgeInsets.all(22),child:Text('No feedback has been submitted yet.',style:TextStyle(color:muted))),...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController(text:(x['adminNote']??'').toString()));return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((x['title']??'Feedback').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:5),Text((x['memberName']??'Member').toString()+' · '+(x['category']??'').toString().replaceAll('_',' '),style:const TextStyle(color:muted,fontSize:11)),const SizedBox(height:8),Text((x['description']??'').toString()),const SizedBox(height:8),Text('Status: '+(x['status']??'received').toString().replaceAll('_',' '),style:const TextStyle(fontWeight:FontWeight.w800)),TextField(controller:note,maxLines:2,maxLength:2000,decoration:const InputDecoration(labelText:'Update for member / reason',border:OutlineInputBorder())),const SizedBox(height:8),Wrap(spacing:7,runSpacing:7,children:[for(final pair in const [('under_review','Review'),('planned','Plan'),('in_progress','In progress'),('implemented','Implemented'),('declined','Decline')])OutlinedButton(onPressed:busy?null:()=>review(x,pair.$1),child:Text(pair.$2))])])));})]);}
+
+class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
+  late Future<Map<String, dynamic>> future;
+  final Map<int, TextEditingController> notes = {};
+  bool busy = false;
+  String? message;
+
+  @override
+  void initState() {
+    super.initState();
+    future = widget.api.adminFeedback();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in notes.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void reload() {
+    setState(() {
+      future = widget.api.adminFeedback();
+    });
+  }
+
+  Future<void> review(Map<String, dynamic> item, String status) async {
+    final id = (item['id'] as num).toInt();
+    setState(() => busy = true);
+    try {
+      final controller = notes.putIfAbsent(
+        id,
+        () => TextEditingController(text: (item['adminNote'] ?? '').toString()),
+      );
+      await widget.api.reviewAdminFeedback(
+        id: id,
+        status: status,
+        note: controller.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        message = 'Feedback status updated.';
+        future = widget.api.adminFeedback();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        message = 'Could not update feedback. Check your permissions and try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: gold));
+        }
+        if (snapshot.hasError) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('Member feedback could not be loaded.'),
+              FilledButton(onPressed: reload, child: const Text('Retry')),
+            ],
+          );
+        }
+
+        final rawItems = snapshot.data?['items'] as List? ?? const [];
+        final items = rawItems
+            .whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList();
+
+        return ListView(
+          padding: const EdgeInsets.all(15),
+          children: [
+            const Text(
+              'MEMBER FEEDBACK',
+              style: TextStyle(
+                color: gold,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Review requests, bugs and improvement ideas. Members see status changes in their feedback history.',
+              style: TextStyle(color: muted),
+            ),
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(message!, style: const TextStyle(color: gold)),
+              ),
+            if (items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(22),
+                child: Text(
+                  'No feedback has been submitted yet.',
+                  style: TextStyle(color: muted),
+                ),
+              ),
+            for (final entry in items) _feedbackCard(entry),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _feedbackCard(Map<String, dynamic> item) {
+    final id = (item['id'] as num).toInt();
+    final controller = notes.putIfAbsent(
+      id,
+      () => TextEditingController(text: (item['adminNote'] ?? '').toString()),
+    );
+    final category = (item['category'] ?? 'other').toString().replaceAll('_', ' ');
+    final status = (item['status'] ?? 'received').toString().replaceAll('_', ' ');
+
+    return Card(
+      color: widget.dark ? panel : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (item['title'] ?? 'Feedback').toString(),
+              style: const TextStyle(color: gold, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              (item['memberName'] ?? 'Member').toString() + ' · ' + category,
+              style: const TextStyle(color: muted, fontSize: 11),
+            ),
+            const SizedBox(height: 8),
+            Text((item['description'] ?? '').toString()),
+            const SizedBox(height: 8),
+            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w800)),
+            TextField(
+              controller: controller,
+              maxLines: 2,
+              maxLength: 2000,
+              decoration: const InputDecoration(
+                labelText: 'Update for member / reason',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'under_review'),
+                  child: const Text('Review'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'planned'),
+                  child: const Text('Plan'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'in_progress'),
+                  child: const Text('In progress'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'implemented'),
+                  child: const Text('Implemented'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'declined'),
+                  child: const Text('Decline'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class AdminShell extends StatefulWidget {
