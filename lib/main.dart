@@ -7,6 +7,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -605,7 +606,7 @@ class _ShellState extends State<Shell> {
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .8)),
-            Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900)),
+            Row(children: [Expanded(child: Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))), IconButton(visualDensity: VisualDensity.compact, tooltip: 'Copy Monarch UID', onPressed: () { Clipboard.setData(ClipboardData(text: (widget.member['uid'] ?? '').toString())); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Monarch UID copied'))); }, icon: const Icon(Icons.copy, size: 14, color: gold))]),
           ])),
           IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage())), tooltip: 'Check for app updates', icon: const Icon(Icons.system_update_alt_rounded, color: gold)),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
@@ -683,14 +684,14 @@ class _ShellState extends State<Shell> {
     if (p == 'Notifications') return NotificationsPage(api: widget.api, dark: dark);
     if (p == 'Settings') return ListView(padding: const EdgeInsets.all(15), children: [
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
-      tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
-      tile('Password recovery', 'Secure password reset.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
+      tile('Account details', 'Edit your account details inside the app.', Icons.manage_accounts, dark, () => page(null, 5)),
+      tile('Password recovery', 'Open secure password recovery instructions.', Icons.lock_reset, dark, () => page('Password Recovery')),
       tile('Online status privacy', 'Choose whether members can see your online and last-seen status.', Icons.visibility_outlined, dark, () => page('Presence Privacy')),
     ]);
     if (p == 'Help & Support') return ListView(padding: const EdgeInsets.all(15), children: [
       featurePage(p, 'How can we help you?', Icons.support_agent, 'Choose the topic that matches your question. For your safety, never share your password, PIN, or one-time verification code with anyone.', dark),
       tile('Contact official support', 'Email support@monarchcodex.online. Include your Monarch UID and a short description; never include your password or OTP.', Icons.email_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Member%20Support'))),
-      tile('Account access & password recovery', 'Get help signing in or securely reset your password.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
+      tile('Account access & password recovery', 'Get help signing in or securely reset your password.', Icons.lock_reset, dark, () => page('Password Recovery')),
       tile('KYC & account verification', 'Check your verification status or open the KYC section.', Icons.verified_user_outlined, dark, () => page('KYC Verification')),
       tile('Deposits & withdrawals', 'Find payment instructions or check your request status.', Icons.account_balance_wallet_outlined, dark, () => page(null, 1)),
       tile('Investments & market', 'Open your investment plans, portfolio, and market information.', Icons.trending_up, dark, () => page(null, 2)),
@@ -699,6 +700,7 @@ class _ShellState extends State<Shell> {
       tile('Report a problem / send feedback', 'Submit a bug report, suggestion, or improvement and track its status.', Icons.feedback_outlined, dark, () => page('Feedback & Suggestions')),
       tile('Visit the website', 'Open Monarch Codex online for additional account pages.', Icons.open_in_new, dark, () => openSite('/')),
     ]);
+    if (p == 'Password Recovery') return PasswordRecoveryPage(dark: dark);
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
     if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
@@ -960,6 +962,29 @@ class _MemberAvatarState extends State<MemberAvatar> {
       return Image.memory(data, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Padding(padding: EdgeInsets.all(widget.size * .14), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg', fit: BoxFit.contain)));
     }),
   );
+}
+
+
+class PasswordRecoveryPage extends StatelessWidget {
+  const PasswordRecoveryPage({super.key, required this.dark});
+  final bool dark;
+  @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [
+    Container(padding: const EdgeInsets.all(18), decoration: mcCard(dark), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Icon(Icons.lock_reset, color: gold, size: 38),
+      const SizedBox(height: 12),
+      const Text('PASSWORD RECOVERY', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      const Text('For account security, use the official password recovery page. Enter only your registered email and follow the instructions sent to your inbox. Never share your password or verification code.', style: TextStyle(color: muted, height: 1.5)),
+      const SizedBox(height: 16),
+      SizedBox(width: double.infinity, child: FilledButton.icon(
+        onPressed: () => launchUrl(Uri.parse('$site/forgot-password'), mode: LaunchMode.externalApplication),
+        icon: const Icon(Icons.open_in_new), label: const Text('OPEN SECURE RECOVERY'),
+        style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink),
+      )),
+      const SizedBox(height: 8),
+      const Text('This opens the official recovery page because password-reset tokens must be handled by the secure account service.', style: TextStyle(color: muted, fontSize: 11)),
+    ])),
+  ]);
 }
 
 class Message extends StatelessWidget {
