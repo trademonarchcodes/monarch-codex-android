@@ -102,7 +102,15 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       if (mounted) {
         setState(() {
           _error = e is DioException
-              ? 'Could not reach the official update service. Check your internet and try again.'
+              ? (e.response?.statusCode == 403 || e.response?.statusCode == 429
+                  ? 'The official release service is temporarily rate-limited. Wait a few minutes and try again.'
+                  : e.response?.statusCode == 404
+                      ? 'The official release record was not found. The release may still be publishing; try again shortly.'
+                      : e.response != null
+                          ? 'The official update service returned HTTP ${e.response?.statusCode}. Try again later or install the latest APK from the official release page.'
+                          : e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout || e.type == DioExceptionType.connectionError
+                              ? 'Could not connect to the official update service. Check your connection. If this is an older app build, install the latest APK once manually; older builds may not have the required network permission.'
+                              : 'The update check failed (${e.type.name}). Try again or install the latest APK from the official release page.')
               : e.toString().replaceFirst('Exception: ', '');
           _status = 'Update check could not be completed.';
         });
