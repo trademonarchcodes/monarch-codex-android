@@ -752,16 +752,11 @@ class _LiveMarketsPageState extends State<LiveMarketsPage> {
   @override void initState() {
     super.initState();
     future = _load();
-    refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) reload();
-    });
+    refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) { if (mounted) reload(); });
   }
-  @override void dispose() {
-    refreshTimer?.cancel();
-    super.dispose();
-  }
+  @override void dispose() { refreshTimer?.cancel(); super.dispose(); }
   Future<Map<String, dynamic>> _load() async {
-    final response = await widget.api.dio.get<dynamic>('$site/api/live-markets/crypto?convert=USD', options: Options(headers: const {'Accept':'application/json'}));
+    final response = await widget.api.dio.get<dynamic>('$site/api/live-markets/crypto?convert=USD', options: Options(headers: const {'Accept': 'application/json'}));
     if (response.data is! Map) throw Exception('The market provider returned an invalid response.');
     return Map<String, dynamic>.from(response.data as Map);
   }
@@ -778,14 +773,14 @@ class _LiveMarketsPageState extends State<LiveMarketsPage> {
         const SizedBox(height: 12),
         FilledButton.icon(onPressed: reload, icon: const Icon(Icons.refresh), label: const Text('Retry')),
       ]);
-      final data = snapshot.data ?? {};
+      final data = snapshot.data ?? <String, dynamic>{};
       final coins = (data['coins'] as List? ?? const []).whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
       final updated = (data['updatedAt'] ?? '').toString();
       return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
         const Text('LIVE MARKET QUOTES', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
         const SizedBox(height: 6),
         const Text('Crypto prices and 24-hour movement from the Monarch Codex market feed.', style: TextStyle(color: muted, fontSize: 12)),
-        if (updated.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 7, bottom: 10), child: Text('Last updated: $updated', style: const TextStyle(color: muted, fontSize: 10))),
+        if (updated.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 7, bottom: 10), child: Text('Last updated: ' + updated, style: const TextStyle(color: muted, fontSize: 10))),
         if (coins.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No quotes are available right now. Refresh shortly.'))),
         ...coins.take(60).map((coin) {
           final quote = coin['quote'] is Map ? Map<String, dynamic>.from(coin['quote'] as Map) : <String, dynamic>{};
@@ -794,163 +789,19 @@ class _LiveMarketsPageState extends State<LiveMarketsPage> {
           final change = double.tryParse((usd['percent_change_24h'] ?? '').toString());
           final symbol = (coin['symbol'] ?? '').toString();
           return Card(color: widget.dark ? panel : Colors.white, child: ListTile(
-            leading: Container(width: 40, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Text(symbol.isEmpty ? '₿' : symbol.substring(0, symbol.length > 4 ? 4 : symbol.length), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))),
+            leading: Container(width: 40, height: 40, alignment: Alignment.center, decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(12)), child: Text(symbol.isEmpty ? 'COIN' : symbol.substring(0, symbol.length > 4 ? 4 : symbol.length), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))),
             title: Text((coin['name'] ?? symbol).toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
             subtitle: Text(symbol + (change == null ? '' : ' · 24h ' + (change >= 0 ? '+' : '') + change.toStringAsFixed(2) + '%'), style: TextStyle(color: change == null ? muted : change >= 0 ? Colors.green : Colors.redAccent, fontSize: 11)),
-            trailing: Text(price > 0 ? '\
-  const ProfileEditorPage({super.key,required this.api,required this.member,required this.dark,required this.onUpdated});
-  final MonarchApi api; final Map<String,dynamic> member; final bool dark; final VoidCallback onUpdated;
-  @override State<ProfileEditorPage> createState()=>_ProfileEditorPageState();
-}
-class _ProfileEditorPageState extends State<ProfileEditorPage> {
-  final name=TextEditingController(), username=TextEditingController(), email=TextEditingController(), phone=TextEditingController(), requestMessage=TextEditingController();
-  Map<String,dynamic> member={}; List<dynamic> roles=[], requests=[]; bool loading=true,saving=false,photoBusy=false,rolesBusy=false; int version=DateTime.now().millisecondsSinceEpoch; String? error,notice;
-  @override void initState(){super.initState();member=Map<String,dynamic>.from(widget.member);_setControllers(member);_load();}
-  void _setControllers(Map<String,dynamic> m){name.text=(m['fullName']??'').toString();username.text=(m['username']??'').toString();email.text=(m['email']??'').toString();phone.text=(m['phone']??'').toString();}
-  Future<void> _load() async {try{final p=await widget.api.profile();if(!mounted)return;setState((){member=p;_setControllers(p);loading=false;});try{final r=await widget.api.roles();if(mounted)setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);});}catch(e){if(mounted)setState(()=>error='Profile editing is available, but role requests need the latest website update. '+_message(e));}}catch(e){if(mounted)setState((){loading=false;error=_message(e);});}}
-  String _message(Object e){if(e is DioException){final d=e.response?.data;if(d is Map&&d['message']!=null)return d['message'].toString();}return e.toString().replaceFirst('Exception: ','');}
-  Future<void> _save() async {setState((){saving=true;error=null;notice=null;});try{final p=await widget.api.saveProfile(fullName:name.text.trim(),username:username.text.trim(),email:email.text.trim(),phone:phone.text.trim());if(!mounted)return;setState((){member={...member,...p};notice='Your profile details were saved.';saving=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);saving=false;});}}
-  Future<void> _photo() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true, allowMultiple: false);
-      if (result == null || result.files.isEmpty) return;
-      setState(() { photoBusy = true; error = null; notice = null; });
-      final uploaded = await widget.api.uploadProfilePhoto(result.files.first);
-      if (!mounted) return;
-      final photoUrl = (uploaded['profilePhotoUrl'] ?? '/member-avatar-current').toString();
-      setState(() {
-        version = DateTime.now().millisecondsSinceEpoch;
-        member = {...member, 'profilePhotoUrl': photoUrl};
-        notice = 'Profile picture updated across your account.';
-        photoBusy = false;
-      });
-      widget.onUpdated();
-    } catch (e) {
-      if (mounted) setState(() { error = _message(e); photoBusy = false; });
-    }
-  }
-  Future<void> _request(Map role) async {setState((){rolesBusy=true;error=null;notice=null;});try{await widget.api.requestRole(roleId:(role['id'] as num).toInt(),message:requestMessage.text.trim());requestMessage.clear();final r=await widget.api.roles();if(!mounted)return;setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);notice='Role request submitted for administrator review.';rolesBusy=false;});}catch(e){if(mounted)setState((){error=_message(e);rolesBusy=false;});}}
-  @override void dispose(){name.dispose();username.dispose();email.dispose();phone.dispose();requestMessage.dispose();super.dispose();}
-  @override Widget build(BuildContext context){final dark=widget.dark;final assigned=roles.where((r)=>r is Map&&r['assigned']==true).toList();return ListView(padding:const EdgeInsets.all(15),children:[
-    if(error!=null) Message(text:error!,success:false), if(notice!=null) Message(text:notice!,success:true),
-    Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(18),border:Border.all(color:const Color(0xFF6D5920))),child:Column(children:[MemberAvatar(api:widget.api,member:member,size:78,radius:24,version:version),const SizedBox(height:10),Text((member['fullName']??'Monarch Member').toString(),textAlign:TextAlign.center,style:const TextStyle(fontSize:19,fontWeight:FontWeight.w900)),Text((member['email']??'').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),OutlinedButton.icon(onPressed:photoBusy?null:_photo,icon:photoBusy?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2)):const Icon(Icons.add_a_photo_outlined),label:Text(photoBusy?'Uploading photo…':'Change profile picture'))])),
-    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('PERSONAL DETAILS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:12),TextField(controller:name,decoration:const InputDecoration(labelText:'Full name')),const SizedBox(height:10),TextField(controller:username,decoration:const InputDecoration(labelText:'Username')),const SizedBox(height:10),TextField(controller:email,keyboardType:TextInputType.emailAddress,decoration:const InputDecoration(labelText:'Email address')),const SizedBox(height:10),TextField(controller:phone,keyboardType:TextInputType.phone,decoration:const InputDecoration(labelText:'Phone number')),const SizedBox(height:14),FilledButton(onPressed:saving?null:_save,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48)),child:Text(saving?'Saving…':'Save profile details'))])),
-    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('YOUR ROLES',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:6),const Text('Roles are assigned only after administrator approval.',style:TextStyle(color:muted,fontSize:12)),if(loading)const Padding(padding:EdgeInsets.all(14),child:Center(child:CircularProgressIndicator(color:gold))),if(!loading&&assigned.isEmpty)const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('No roles have been assigned yet.',style:TextStyle(color:muted))),...assigned.map((r)=>ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.verified_user,color:gold),title:Text((r['role_name']??'').toString()),subtitle:Text((r['description']??'').toString(),style:const TextStyle(color:muted,fontSize:12)))),if(!loading)...roles.where((r)=>r is Map&&r['assigned']!=true).map((r)=>Card(color:dark?const Color(0xFF101012):Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((r['role_name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.w900)),Text((r['description']??'Request approval to access this role.').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:8),TextField(controller:requestMessage,maxLines:2,decoration:const InputDecoration(labelText:'Reason for request (optional)')),Align(alignment:Alignment.centerRight,child:TextButton(onPressed:rolesBusy?null:()=>_request(Map<String,dynamic>.from(r as Map)),child:const Text('Request role')))]))))],)),
-    const SizedBox(height:12),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ROLE REQUEST HISTORY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),if(requests.isEmpty)const Text('No requests yet.',style:TextStyle(color:muted)),...requests.map((r)=>ListTile(contentPadding:EdgeInsets.zero,title:Text((r['role_name']??'Role').toString()),subtitle:Text((r['message']??'').toString(),style:const TextStyle(color:muted,fontSize:12)),trailing:Text((r['status']??'').toString().toUpperCase(),style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900))))]))
-  ]);}
-}
-
-class MemberAvatar extends StatefulWidget {
-  const MemberAvatar({super.key, required this.api, required this.member, required this.size, required this.radius, required this.version});
-  final MonarchApi api;
-  final Map<String, dynamic> member;
-  final double size, radius;
-  final int version;
-  @override State<MemberAvatar> createState() => _MemberAvatarState();
-}
-class _MemberAvatarState extends State<MemberAvatar> {
-  Future<Uint8List?>? bytes;
-  @override void initState() { super.initState(); bytes = load(); }
-  @override void didUpdateWidget(covariant MemberAvatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.member['profilePhotoUrl'] != widget.member['profilePhotoUrl'] || oldWidget.version != widget.version) bytes = load();
-  }
-  Future<Uint8List?> load() async {
-    final raw = (widget.member['profilePhotoUrl'] ?? '').toString().trim();
-    if (raw.isEmpty) return null;
-    final url = (raw.startsWith('http://') || raw.startsWith('https://') ? raw : site + (raw.startsWith('/') ? raw : '/$raw')) + (raw.contains('?') ? '&' : '?') + 'v=${widget.version}';
-    try {
-      final response = await widget.api.dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
-      final data = response.data;
-      return data == null ? null : Uint8List.fromList(data);
-    } catch (_) { return null; }
-  }
-  @override Widget build(BuildContext context) => Container(
-    width: widget.size, height: widget.size,
-    decoration: BoxDecoration(color: const Color(0xFF2A220F), borderRadius: BorderRadius.circular(widget.radius), border: Border.all(color: const Color(0xFF705A20))),
-    clipBehavior: Clip.antiAlias,
-    child: FutureBuilder<Uint8List?>(future: bytes, builder: (context, snapshot) {
-      final data = snapshot.data;
-      if (data == null) return Padding(padding: EdgeInsets.all(widget.size * .14), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg', fit: BoxFit.contain));
-      return Image.memory(data, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Padding(padding: EdgeInsets.all(widget.size * .14), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg', fit: BoxFit.contain)));
-    }),
+            trailing: Text(price > 0 ? 'USD ' + price.toStringAsFixed(price < 1 ? 6 : 2) : '—', style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+          ));
+        }),
+        const SizedBox(height: 8),
+        const Text('Market data can be delayed or unavailable. Quotes are educational only, not financial advice or guaranteed execution prices.', style: TextStyle(color: muted, fontSize: 10)),
+        OutlinedButton.icon(onPressed: reload, icon: const Icon(Icons.refresh), label: const Text('Refresh quotes')),
+      ]));
+    },
   );
 }
-
-class Message extends StatelessWidget {
-  const Message({super.key, required this.text, required this.success});
-  final String text;
-  final bool success;
-  @override Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(color: success ? const Color(0xFF17291F) : const Color(0xFF321B1A), border: Border.all(color: success ? const Color(0xFF2F6647) : const Color(0xFF7B403B)), borderRadius: BorderRadius.circular(12)),
-    child: Text(text, style: TextStyle(color: success ? const Color(0xFFB9F3CE) : const Color(0xFFFFC7C1), fontSize: 12, height: 1.45)),
-  );
-}
- : '₦';
-    return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(22), border: Border.all(color: const Color(0xFF6D5920)),
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF28200D), Color(0xFF151411), Color(0xFF101012)]),
-      boxShadow: const [BoxShadow(color: Color(0x22000000), blurRadius: 22, offset: Offset(0, 9))],
-    ), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Row(children: [Icon(Icons.account_balance_wallet_outlined, color: gold, size: 18), SizedBox(width: 8), Expanded(child: Text('TOTAL WALLET BALANCE', style: TextStyle(color: Color(0xFFD6CBA8), fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1)))]),
-      const SizedBox(height: 12),
-      Text((balanceInUsd && !canConvert) ? 'FX unavailable' : shownSymbol + shownValue.toStringAsFixed(2), style: const TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900, letterSpacing: -.7)),
-      const SizedBox(height: 4),
-      Text('Combined wallet value · $shownCurrency', style: const TextStyle(color: Color(0xFFE0C96D), fontSize: 12, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, children: [
-        ChoiceChip(label: const Text('₦ Naira'), selected: !balanceInUsd, onSelected: (_) { setState(() => balanceInUsd = false); }),
-        ChoiceChip(label: const Text('\$ Dollars'), selected: balanceInUsd, onSelected: (_) { setState(() => balanceInUsd = true); }),
-      ]),
-      if (!canConvert) const Padding(padding: EdgeInsets.only(top: 8), child: Text('Exchange-rate reference unavailable. Naira/USD conversion is paused until a rate is available.', style: TextStyle(color: muted, fontSize: 10))),
-      const SizedBox(height: 8),
-      const Text('Display conversion only. Your actual NGN and USD account balances are unchanged.', style: TextStyle(color: muted, fontSize: 10)),
-    ]));
-  }
-
-  Widget stat(String title, String value, IconData icon, bool dark) => Container(
-    constraints: const BoxConstraints(minHeight: 98), padding: const EdgeInsets.all(12), decoration: card(dark),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, color: gold, size: 18), const SizedBox(height: 11), Text(title, style: const TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .4)),
-      const SizedBox(height: 4), Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-    ]),
-  );
-
-  Widget quick(String label, IconData icon, VoidCallback action, bool dark) => InkWell(onTap: action, borderRadius: BorderRadius.circular(14), child: Container(
-    decoration: card(dark), padding: const EdgeInsets.all(8), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Container(width: 37, height: 37, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
-      const SizedBox(height: 7), Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800)),
-    ]),
-  ));
-
-  Widget featurePage(String title, String subtitle, IconData icon, String body, bool dark) => ListView(padding: const EdgeInsets.all(15), children: [
-    Container(padding: const EdgeInsets.all(20), decoration: card(dark), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: 50, height: 50, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: gold, size: 27)),
-      const SizedBox(height: 15), Text(title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 5), Text(subtitle, style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 13), Text(body, style: const TextStyle(color: muted, fontSize: 13, height: 1.6)),
-    ])),
-  ]);
-
-  Widget tile(String title, String subtitle, IconData icon, bool dark, VoidCallback action) => Container(
-    margin: const EdgeInsets.only(bottom: 10), decoration: card(dark), child: ListTile(
-      onTap: action, contentPadding: const EdgeInsets.symmetric(horizontal: 13, vertical: 3),
-      leading: Container(width: 39, height: 39, decoration: BoxDecoration(color: gold.withValues(alpha:.12), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: gold, size: 20)),
-      title: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900)),
-      subtitle: Padding(padding: const EdgeInsets.only(top: 4), child: Text(subtitle, style: const TextStyle(color: muted, fontSize: 10, height: 1.4))),
-      trailing: const Icon(Icons.chevron_right, color: muted, size: 19),
-    ),
-  );
-
-  BoxDecoration card(bool dark) => BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: dark ? const Color(0xFF302E29) : const Color(0xFFE4DFD2)));
-  Future<void> openSite(String path) async => launchUrl(Uri.parse(site + path), mode: LaunchMode.externalApplication);
-}
-
-double number(dynamic value) => value is num ? value.toDouble() : double.tryParse(value?.toString() ?? '') ?? 0;
-
-
-BoxDecoration mcCard(bool dark) => BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: dark ? const Color(0xFF302E29) : const Color(0xFFE4DFD2)));
 
 class ProfileEditorPage extends StatefulWidget {
   const ProfileEditorPage({super.key,required this.api,required this.member,required this.dark,required this.onUpdated});
