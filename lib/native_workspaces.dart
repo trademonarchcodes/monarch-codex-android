@@ -145,7 +145,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Review requests, bugs and improvement ideas. Members see status changes in their feedback history.',
+              'Review member suggestions, bug reports and improvement requests in one queue. Update each item's status and leave a clear note; members receive a notification and can track the decision in their feedback history.',
               style: TextStyle(color: muted),
             ),
             if (message != null)
@@ -431,7 +431,7 @@ class _AdminReviewQueuePageState extends State<AdminReviewQueuePage>{
     if(pending||(widget.type=='withdrawals'&&status=='approved'))...[
      TextField(controller:note(id),maxLines:2,decoration:const InputDecoration(labelText:'Review note / rejection reason')),
      Wrap(spacing:7,runSpacing:7,children:[
-      if(widget.type=='kyc')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve')),
+      if(widget.type=='kyc')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve verified connection')),
       if(widget.type=='kyc')OutlinedButton(onPressed:busy.contains(id)?null:()=>act(r,'needs_resubmission'),child:const Text('Request resubmission')),
       if(widget.type=='deposits')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve & credit')),
       if(widget.type=='withdrawals'&&status=='pending')FilledButton(onPressed:busy.contains(id)?null:()=>act(r,'approved'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Approve payout')),
@@ -733,8 +733,8 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
     if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Cooperative verification queue unavailable.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ONLINE COOPERATIVE VERIFICATION',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-      const SizedBox(height:6),const Text('Contact the Cooperative administrator and confirm the submitted name/email before approving. Keep uncertain requests pending.',style:TextStyle(color:muted)),
+      const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Check the member's submitted registration name and email with the Cooperative administrator. Approve only after the registration is confirmed; reject with a clear reason if it cannot be verified. Never ask for passwords or OTPs.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No pending connection requests.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
       ...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController());return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
@@ -742,7 +742,7 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
         const SizedBox(height:4),Text('Member email: ${x['memberEmail']??'—'}'),
         Text('Registered name: ${x['registeredName']??'—'}'),Text('Registered email: ${x['registeredEmail']??'—'}'),
         Text('Submitted: ${x['createdAt']??'—'}',style:const TextStyle(color:muted,fontSize:10)),
-        const SizedBox(height:10),TextField(controller:note,maxLines:2,decoration:const InputDecoration(labelText:'Review note (required for rejection)',border:OutlineInputBorder())),
+        const SizedBox(height:10),TextField(controller:note,maxLines:2,decoration:const InputDecoration(labelText:'Review note (required when rejecting)',border:OutlineInputBorder())),
         const SizedBox(height:10),Row(children:[Expanded(child:OutlinedButton(onPressed:busy.contains(id)?null:()=>review(id,'reject'),child:const Text('Reject'))),const SizedBox(width:8),Expanded(child:FilledButton(onPressed:busy.contains(id)?null:()=>review(id,'approve'),child:const Text('Approve')))])
       ])));}),
       OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Refresh queue')),
@@ -778,8 +778,8 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
     final categories=(data['categories'] as List? ?? const []).map((x)=>x.toString()).toList();
     final permissions=(data['permissions'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ADMIN CONTROL & PERMISSIONS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-      const SizedBox(height:6),const Text('Green = full category access. Gold = only the selected actions. Red = no category access. Only the Super Admin can change these controls.',style:TextStyle(color:muted)),
+      const Text('ADMIN ACCESS CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Set access separately for each administrator and category. Green grants full access; Gold grants only the actions you select; Red blocks access. Only the Founder / Super Admin may change these permissions. Administrators cannot elevate their own access.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...admins.where((a)=>(a['role']??'').toString()!='super_admin').map((admin){
         final memberId=(admin['memberId'] as num).toInt();
@@ -850,7 +850,7 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
       const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-      const SizedBox(height:6),const Text('Only HTTPS links are accepted. Empty platforms stay hidden from members; never enter personal links here unless explicitly intended to be public.',style:TextStyle(color:muted)),
+      const SizedBox(height:6),const Text('These are the official links members can open from Monarch Codex. Use a valid HTTPS address and switch a link on only after testing it. Leave a platform blank or inactive to hide it. Founder personal contacts should remain separate unless deliberately published.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...items.map((item){
         final key=(item['key_name']??'other').toString();
