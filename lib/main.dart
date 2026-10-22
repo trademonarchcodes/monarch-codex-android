@@ -706,6 +706,7 @@ class _ShellState extends State<Shell> {
     ]);
     if (p == 'Password Recovery') return PasswordRecoveryPage(dark: dark);
     if (p == 'KYC Verification') return KycStatusPage(api: widget.api, dark: dark);
+    if (p == 'Manage Members') return AdminMembersPage(api: widget.api, dark: dark);
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
     if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
     if (p == 'Social Links') return SocialLinksPage(api: widget.api, dark: dark);
