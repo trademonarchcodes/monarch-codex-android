@@ -342,7 +342,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm investment purchase'),
-        content: Text('Package: ${package['name'] ?? 'Investment package'}\\nPrice: ${money(currency, price)}\\n1% purchase fee: ${money(currency, fee)}\\nTotal package cost: ${money(currency, total)}\\n\\nYour wallet will be charged only after the server verifies your approved identity status and available balance. This action cannot be repeated with the same purchase request.'),
+        content: Text('Package: ${package['name'] ?? 'Investment package'}\nPrice: ${money(currency, price)}\n1% purchase fee: ${money(currency, fee)}\nTotal package cost: ${money(currency, total)}\n\nYour wallet will be charged only after the server verifies your approved identity status and available balance. This action cannot be repeated with the same purchase request.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('Cancel')),
           FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink), child: const Text('Confirm purchase')),
