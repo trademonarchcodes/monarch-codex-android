@@ -1,7 +1,7 @@
 name: Flutter checks and Android APK
 on:
   push:
-    branches: [main, "codex/**"]
+    branches: [main, "codex/**", "fix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -29,22 +29,38 @@ jobs:
       - run: flutter pub get
       - run: dart run flutter_launcher_icons
       - run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
-      - run: dart format --output=none lib
+      - run: dart format lib
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
+      - name: Read app version
+        id: app_version
+        run: |
+          echo "version=$(sed -n 's/^version: *//p' pubspec.yaml | head -n 1)" >> "$GITHUB_OUTPUT"
+      - name: Generate APK checksum
+        run: sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/app-release.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: monarch-codex-android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release.apk.sha256
           if-no-files-found: error
           retention-days: 14
-      - name: Publish direct APK download on main
+      - name: Publish latest APK and checksum
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: android-build-${{ github.run_number }}
-          name: Monarch Codex Android build ${{ github.run_number }}
+          tag_name: latest-apk
+          name: Monarch Codex Android — Latest APK
+          body: |
+            Version: ${{ steps.app_version.outputs.version }}
+
+            Automatically updated release containing the latest successfully built Monarch Codex Android APK. The SHA-256 checksum is published beside the APK.
           prerelease: true
           generate_release_notes: false
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release.apk.sha256
+          overwrite_files: true
+          fail_on_unmatched_files: true
