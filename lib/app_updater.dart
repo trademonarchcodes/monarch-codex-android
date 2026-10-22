@@ -193,6 +193,13 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
               padding: const EdgeInsets.all(18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_status, style: const TextStyle(fontWeight: FontWeight.w800)),
+                if (_mandatoryUpdate) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Important: this update is marked mandatory. Install it as soon as possible to keep using the latest supported version.',
+                    style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.w700),
+                  ),
+                ],
                 if (_releaseNotes != null && _releaseNotes!.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   const Text('Release notes', style: TextStyle(color: _gold, fontWeight: FontWeight.w800)),
