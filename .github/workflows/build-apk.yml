@@ -166,6 +166,13 @@ jobs:
           "$AAPT" dump permissions build/app/outputs/flutter-apk/app-release.apk | tee /tmp/monarch-apk-permissions.txt
           grep -q "android.permission.INTERNET" /tmp/monarch-apk-permissions.txt
 
+      - name: Read app version
+        id: app_version
+        run: echo "version=$(sed -n 's/^version: *//p' pubspec.yaml | head -n 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Generate APK checksum
+        run: sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/app-release.apk.sha256
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -180,8 +187,13 @@ jobs:
         with:
           tag_name: latest-apk
           name: Monarch Codex Android — Latest APK
-          body: Automatically updated release containing the latest successfully built Monarch Codex Android APK.
+          body: |
+            Version: ${{ steps.app_version.outputs.version }}
+
+            Automatically updated release containing the latest successfully built Monarch Codex Android APK. The SHA-256 checksum is published beside the APK.
           prerelease: true
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-release.apk.sha256
           overwrite_files: true
           fail_on_unmatched_files: true

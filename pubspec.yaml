@@ -1,7 +1,7 @@
 name: monarch_codex
 description: Monarch Codex member app
 publish_to: "none"
-version: 0.1.0+1
+version: 0.1.1+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -17,6 +17,9 @@ dependencies:
   path_provider: ^2.1.5
   flutter_svg: ^2.0.17
   url_launcher: ^6.3.1
+  package_info_plus: ^8.3.0
+  open_filex: ^4.7.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
