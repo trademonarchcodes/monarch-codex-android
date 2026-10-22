@@ -332,48 +332,37 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
   Future<void> buy(Map<String,dynamic> p) async {
     if(purchasing)return;
     final price=double.tryParse((p['price']??'0').toString())??0;
-    final fee=price*0.01;
     final currency=(p['currency']??'').toString();
-    final accepted=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
-      title:const Text('Confirm investment purchase'),
-      content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text((p['name']??'Investment package').toString(),style:const TextStyle(fontWeight:FontWeight.w900)),
-        const SizedBox(height:10),
-        Text('Package price: ${money(currency,price)}'),
-        Text('Service fee (1%): ${money(currency,fee)}'),
-        const Divider(),
-        Text('Package total: ${money(currency,price+fee)}',style:const TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:16)),
-        const SizedBox(height:10),
-        const Text('The server will verify your approved KYC status and available wallet balance before charging you. The purchase will be recorded in your portfolio and transaction history.',style:TextStyle(color:muted,fontSize:12,height:1.45)),
-        if((p['terms']??'').toString().trim().isNotEmpty)...[
-          const SizedBox(height:10),const Text('Terms',style:TextStyle(color:gold,fontWeight:FontWeight.w800)),Text(p['terms'].toString(),style:const TextStyle(fontSize:12)),
-        ],
-      ])),
-      actions:[
-        TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
-        FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('CONFIRM PURCHASE')),
-      ],
-    ));
-    if(accepted!=true)return;
+    final id=(p['id'] as num?)?.toInt();
+    if(id==null||id<=0){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('This investment package is unavailable. Refresh and try again.')));
+      return;
+    }
+    // One tap sends a single idempotent purchase request. The server is the
+    // authority for package price, fees, KYC, wallet balance and activation.
     setState(()=>purchasing=true);
     try{
-      final id=(p['id'] as num).toInt();
       final result=await widget.api.purchaseInvestment(packageId:id,idempotencyKey:idempotencyKey());
       if(!mounted)return;
       final investment=result['investment'] is Map?Map<String,dynamic>.from(result['investment'] as Map):<String,dynamic>{};
+      final total=(investment['totalCharged']??price).toString();
+      final message=(result['message']??'Investment purchase recorded successfully.').toString();
       await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
-        title:const Text('Purchase recorded'),
-        content:Text((result['message']??'Your investment purchase was recorded.') .toString()+
-          '\n\nReference: ${investment['reference']??'—'}\nPackage: ${investment['packageName']??p['name']??'—'}\nTotal charged: ${money(investment['currency']??currency,investment['totalCharged']??(price+fee))}\nStatus: ${(investment['status']??'active').toString().toUpperCase()}'),
+        title:const Row(children:[Icon(Icons.check_circle,color:gold,size:28),SizedBox(width:8),Expanded(child:Text('Investment successful'))]),
+        content:SingleChildScrollView(child:Text('$message\n\nReference: ${investment['reference']??'—'}\nPackage: ${investment['packageName']??p['name']??'—'}\nAmount charged: ${money(investment['currency']??currency,total)}\nStatus: ${(investment['status']??'active').toString().toUpperCase()}')),
         actions:[FilledButton(onPressed:()=>Navigator.pop(ctx),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('DONE'))],
       ));
       reload();
     }catch(e){
       if(!mounted)return;
-      var message='Purchase could not be completed. No funds should be deducted unless the server confirms the transaction.';
+      var message='Purchase could not be completed. The server did not confirm a successful transaction.';
       if(e is DioException){final data=e.response?.data;if(data is Map&&data['message']!=null)message=data['message'].toString();}
       else message=e.toString().replaceFirst('Exception: ','');
-      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Purchase not completed'),content:Text(message),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('OK'))]));
+      await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
+        title:const Row(children:[Icon(Icons.error_outline,color:Colors.redAccent,size:26),SizedBox(width:8),Expanded(child:Text('Purchase not completed'))]),
+        content:Text(message),
+        actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('OK'))],
+      ));
     }finally{if(mounted)setState(()=>purchasing=false);}
   }
   @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
