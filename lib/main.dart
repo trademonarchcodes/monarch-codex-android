@@ -59,6 +59,10 @@ class MonarchApi {
   Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
   Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
   Future<Map<String, dynamic>> adminOverview() async => Map<String, dynamic>.from((await dio.get('admin/overview')).data as Map);
+  Future<Map<String,dynamic>> adminMembers({String q=''}) async => Map<String,dynamic>.from((await dio.get('admin/members',queryParameters:{'q':q})).data as Map);
+  Future<Map<String,dynamic>> adminMember(int id) async => Map<String,dynamic>.from((await dio.get('admin/members/$id')).data as Map);
+  Future<void> setMemberBlocked(int id,bool blocked) async { await dio.post('admin/members/$id/status',data:{'blocked':blocked}); }
+  Future<void> deleteMember(int id) async { await dio.delete('admin/members/$id'); }
   Future<Map<String,dynamic>> adminReviewQueue(String type) async => Map<String,dynamic>.from((await dio.get('admin/reviews/$type')).data as Map);
   Future<Map<String,dynamic>> reviewKyc({required int id,required String status,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/reviews/kyc/$id',data:{'status':status,'note':note})).data as Map);
   Future<Map<String,dynamic>> reviewDeposit({required int id,required String decision,required String note,required bool confirmed}) async => Map<String,dynamic>.from((await dio.post('admin/reviews/deposits/$id',data:{'decision':decision,'note':note,'confirmed':confirmed})).data as Map);
