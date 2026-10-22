@@ -102,6 +102,8 @@ class MonarchApi {
   Future<Map<String,dynamic>> adminCooperativeConnections() async => Map<String,dynamic>.from((await dio.get('admin/cooperative/connections')).data as Map);
   Future<Map<String,dynamic>> reviewCooperativeConnection({required int id,required String decision,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/cooperative/connections/$id/review',data:{'decision':decision,'note':note})).data as Map);
   Future<Map<String,dynamic>> adminSocialLinks() async => Map<String,dynamic>.from((await dio.get('admin/social-links')).data as Map);
+  Future<Map<String,dynamic>> adminFeedback() async => Map<String,dynamic>.from((await dio.get('admin/feedback')).data as Map);
+  Future<Map<String,dynamic>> reviewAdminFeedback({required int id,required String status,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/feedback/$id/review',data:{'status':status,'note':note})).data as Map);
   Future<Map<String,dynamic>> saveAdminSocialLink({required String key,required String label,required String url,required bool active}) async => Map<String,dynamic>.from((await dio.post('admin/social-links',data:{'key':key,'label':label,'url':url,'active':active})).data as Map);
   Future<Map<String,dynamic>> adminPermissions() async => Map<String,dynamic>.from((await dio.get('admin/permissions')).data as Map);
   Future<Map<String,dynamic>> saveAdminPermission({required int adminMemberId,required String category,required String level,required List<String> allowedActions}) async => Map<String,dynamic>.from((await dio.post('admin/permissions',data:{'adminMemberId':adminMemberId,'category':category,'level':level,'allowedActions':allowedActions})).data as Map);
