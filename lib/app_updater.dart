@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -8,7 +9,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 const _gold = Color(0xFFF3CF3C);
-const _releaseApi = 'https://api.github.com/repos/trademonarchcodes/monarch-codex-android/releases/tags/latest-apk';
+const _manifestUrl = 'https://github.com/trademonarchcodes/monarch-codex-android/releases/download/latest-apk/app-update.json';
+const _apkDownloadUrl = 'https://github.com/trademonarchcodes/monarch-codex-android/releases/download/latest-apk/app-release.apk';
+const _checksumDownloadUrl = 'https://github.com/trademonarchcodes/monarch-codex-android/releases/download/latest-apk/app-release.apk.sha256';
 
 class AppUpdaterPage extends StatefulWidget {
   const AppUpdaterPage({super.key});
@@ -21,7 +24,7 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
   final Dio _dio = Dio(BaseOptions(
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 60),
-    headers: const {'Accept': 'application/vnd.github+json'},
+    headers: const {'Accept': 'application/json'},
   ));
   bool _checking = false;
   bool _downloading = false;
@@ -68,32 +71,23 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
     });
     try {
       final info = await PackageInfo.fromPlatform();
-      final response = await _dio.get<dynamic>(_releaseApi);
-      if (response.data is! Map) throw Exception('The release information is not valid.');
-      final release = Map<String, dynamic>.from(response.data as Map);
-      final body = (release['body'] ?? '').toString();
-      final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
-      if (match == null) throw Exception('The release has no version information yet. Please try again later.');
-      final version = match.group(1)!;
-      final assets = (release['assets'] as List? ?? const [])
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
-      Map<String, dynamic>? apk;
-      Map<String, dynamic>? checksum;
-      for (final asset in assets) {
-        if (asset['name'] == 'app-release.apk') apk = asset;
-        if (asset['name'] == 'app-release.apk.sha256') checksum = asset;
-      }
-      if (apk == null || checksum == null) {
-        throw Exception('The official APK or its checksum is not published yet.');
+      final response = await _dio.get<String>(
+        _manifestUrl,
+        options: Options(responseType: ResponseType.plain, headers: const {'Accept': 'application/json'}),
+      );
+      final decoded = jsonDecode(response.data ?? '');
+      if (decoded is! Map) throw Exception('The official update manifest is not valid.');
+      final manifest = Map<String, dynamic>.from(decoded);
+      final version = (manifest['version'] ?? '').toString().trim();
+      if (!RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$').hasMatch(version)) {
+        throw Exception('The official update manifest does not contain a valid version.');
       }
       if (!mounted) return;
       setState(() {
         _latestVersion = version;
-        _apkUrl = apk!['browser_download_url']?.toString();
-        _checksumUrl = checksum!['browser_download_url']?.toString();
-        _releaseNotes = body.replaceFirst(match.group(0)!, '').trim();
+        _apkUrl = _apkDownloadUrl;
+        _checksumUrl = _checksumDownloadUrl;
+        _releaseNotes = (manifest['releaseNotes'] ?? '').toString().trim();
         _status = _isNewer(version, '${info.version}+${info.buildNumber}')
             ? 'Version $version is available.'
             : 'You are using the latest version (${info.version}+${info.buildNumber}).';
@@ -102,7 +96,15 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       if (mounted) {
         setState(() {
           _error = e is DioException
-              ? 'Could not reach the official update service. Check your internet and try again.'
+              ? (e.response?.statusCode == 403 || e.response?.statusCode == 429
+                  ? 'The official release service is temporarily rate-limited. Wait a few minutes and try again.'
+                  : e.response?.statusCode == 404
+                      ? 'The official release record was not found. The release may still be publishing; try again shortly.'
+                      : e.response != null
+                          ? 'The official update service returned HTTP ${e.response?.statusCode}. Try again later or install the latest APK from the official release page.'
+                          : e.type == DioExceptionType.connectionTimeout || e.type == DioExceptionType.receiveTimeout || e.type == DioExceptionType.connectionError
+                              ? 'Could not connect to the official update service. Check your connection. If this is an older app build, install the latest APK once manually; older builds may not have the required network permission.'
+                              : 'The update check failed (${e.type.name}). Try again or install the latest APK from the official release page.')
               : e.toString().replaceFirst('Exception: ', '');
           _status = 'Update check could not be completed.';
         });
