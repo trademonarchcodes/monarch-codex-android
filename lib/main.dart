@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:dio/dio.dart';
@@ -44,6 +45,12 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.post('auth/register', data: data)).data as Map);
   Future<Map<String, dynamic>> overview() async =>
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
+  Future<Map<String, dynamic>> investments() async =>
+      Map<String, dynamic>.from((await dio.get('investments')).data as Map);
+  Future<Map<String, dynamic>> marketCrypto({String currency = 'USD'}) async =>
+      Map<String, dynamic>.from((await dio.get('$site/api/live-markets/crypto', queryParameters: {'convert': currency})).data as Map);
+  Future<Map<String, dynamic>> marketForex() async =>
+      Map<String, dynamic>.from((await dio.get('$site/api/live-markets/forex')).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
@@ -281,6 +288,163 @@ class _NotificationsPageState extends State<NotificationsPage>{
   });
 }
 
+class MarketPage extends StatefulWidget {
+  const MarketPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<MarketPage> createState() => _MarketPageState();
+}
+class _MarketPageState extends State<MarketPage> {
+  String mode = 'crypto', currency = 'USD';
+  late Future<Map<String, dynamic>> future;
+  Timer? timer;
+  @override void initState() {
+    super.initState();
+    future = _load();
+    timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => future = _load());
+    });
+  }
+  Future<Map<String, dynamic>> _load() => mode == 'crypto' ? widget.api.marketCrypto(currency: currency) : widget.api.marketForex();
+  void changeMode(String value) { setState(() { mode = value; future = _load(); }); }
+  void reload() { setState(() => future = _load()); }
+  @override void dispose() { timer?.cancel(); super.dispose(); }
+  String price(dynamic raw) {
+    final n = raw is num ? raw.toDouble() : double.tryParse((raw ?? '').toString());
+    if (n == null || !n.isFinite) return '—';
+    if (n >= 1000) return n.toStringAsFixed(2);
+    if (n >= 1) return n.toStringAsFixed(4);
+    return n.toStringAsFixed(8);
+  }
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: gold));
+      final data = snapshot.data ?? {};
+      final coins = (data['coins'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final rateData = data['rates'] is Map ? Map<String, dynamic>.from(data['rates'] as Map) : <String, dynamic>{};
+      final rates = rateData['rates'] is Map ? Map<String, dynamic>.from(rateData['rates'] as Map) : <String, dynamic>{};
+      final pairs = <Map<String, String>>[
+        {'pair':'USD/NGN','base':'USD','quote':'NGN'},
+        {'pair':'USD/EUR','base':'USD','quote':'EUR'},
+        {'pair':'USD/GBP','base':'USD','quote':'GBP'},
+        {'pair':'EUR/NGN','base':'EUR','quote':'NGN'},
+        {'pair':'GBP/NGN','base':'GBP','quote':'NGN'},
+      ];
+      final rateRows = pairs.map((pair) {
+        final base = pair['base']!, quote = pair['quote']!;
+        final baseRate = double.tryParse((rates[base] ?? (base == 'USD' ? 1 : '')).toString());
+        final quoteRate = double.tryParse((rates[quote] ?? '').toString());
+        final value = baseRate != null && quoteRate != null && baseRate > 0 ? quoteRate / baseRate : null;
+        return {'pair':pair['pair']!, 'value':value};
+      }).toList();
+      return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
+        const Text('MARKET WATCH', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+        const SizedBox(height: 5),
+        const Text('Crypto quotes and foreign-exchange reference rates from the Monarch Codex market feed. FX rates are reference prices, not broker executable quotes.', style: TextStyle(color: muted)),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(child: FilledButton(onPressed: mode == 'crypto' ? null : () => changeMode('crypto'), child: const Text('Crypto'))),
+          const SizedBox(width: 8),
+          Expanded(child: FilledButton(onPressed: mode == 'forex' ? null : () => changeMode('forex'), child: const Text('Forex'))),
+          IconButton(onPressed: reload, tooltip: 'Refresh market data', icon: const Icon(Icons.refresh, color: gold)),
+        ]),
+        if (mode == 'crypto') Row(children: [
+          const Text('Quote currency', style: TextStyle(color: muted)),
+          const SizedBox(width: 10),
+          DropdownButton<String>(value: currency, items: const ['USD','NGN','EUR','GBP'].map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) { if (v != null) setState(() { currency = v; future = _load(); }); }),
+        ]),
+        if (snapshot.hasError) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('Market data is temporarily unavailable. No placeholder prices are shown. Please retry later.'))),
+        if (!snapshot.hasError && mode == 'crypto' && coins.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('The market feed returned no cryptocurrency quotes.'))),
+        if (!snapshot.hasError && mode == 'crypto') ...coins.take(60).map((coin) {
+          final quoteMap = coin['quote'] is Map ? Map<String, dynamic>.from(coin['quote'] as Map) : <String, dynamic>{};
+          final selected = quoteMap[currency] is Map ? Map<String, dynamic>.from(quoteMap[currency] as Map) : <String, dynamic>{};
+          final change = double.tryParse((selected['percent_change_24h'] ?? '').toString());
+          return Card(color: widget.dark ? panel : Colors.white, child: ListTile(
+            leading: CircleAvatar(backgroundColor: gold.withValues(alpha: .12), child: Text((coin['symbol'] ?? '?').toString().toUpperCase().substring(0, ((coin['symbol'] ?? '?').toString().length).clamp(1, 3).toInt()), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))),
+            title: Text((coin['name'] ?? 'Crypto asset').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+            subtitle: Text((coin['symbol'] ?? '').toString().toUpperCase() + (change == null ? '' : ' · 24h ${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%'), style: TextStyle(color: change == null ? muted : change >= 0 ? Colors.green : Colors.redAccent, fontSize: 11)),
+            trailing: Text(price(selected['price']), style: const TextStyle(fontWeight: FontWeight.w900)),
+          ));
+        }),
+        if (!snapshot.hasError && mode == 'forex') ...[
+          if (rateRows.every((r) => r['value'] == null)) const Card(child: Padding(padding: EdgeInsets.all(16), child: Text('FX reference rates are temporarily unavailable.'))),
+          ...rateRows.where((r) => r['value'] != null).map((r) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(leading: const Icon(Icons.currency_exchange, color: gold), title: Text(r['pair']!.toString(), style: const TextStyle(fontWeight: FontWeight.w900)), trailing: Text(price(r['value']), style: const TextStyle(fontWeight: FontWeight.w900))))),
+        ],
+        const SizedBox(height: 12),
+        Text('Source: ${data['source'] ?? 'Monarch Codex market feed'}', style: const TextStyle(color: muted, fontSize: 11)),
+        Text('Provider data updated: ${data['updatedAt'] ?? rateData['date'] ?? 'not available'}', style: const TextStyle(color: muted, fontSize: 11)),
+        const Text('Refresh checks run every 30 seconds. Actual quote freshness depends on the upstream provider and its cache; FX reference rates may update less frequently. These are not tick-by-tick trading quotes.', style: TextStyle(color: muted, fontSize: 11)),
+      ]));
+    },
+  );
+}
+
+class InvestmentsPage extends StatefulWidget {
+  const InvestmentsPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<InvestmentsPage> createState() => _InvestmentsPageState();
+}
+
+class _InvestmentsPageState extends State<InvestmentsPage> {
+  late Future<Map<String, dynamic>> future;
+  @override void initState() { super.initState(); future = widget.api.investments(); }
+  void reload() => setState(() => future = widget.api.investments());
+  String money(dynamic currency, dynamic amount) {
+    final value = double.tryParse((amount ?? '0').toString()) ?? 0;
+    return '${currency ?? ''} ${value.toStringAsFixed(2)}';
+  }
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: gold));
+      if (snapshot.hasError) return ListView(padding: const EdgeInsets.all(20), children: [
+        const Icon(Icons.trending_up, color: gold, size: 42),
+        const SizedBox(height: 10),
+        const Text('Investment information is temporarily unavailable. Your wallet has not been changed.'),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: reload, child: const Text('Retry')),
+      ]);
+      final data = snapshot.data ?? {};
+      final packages = (data['packages'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final portfolio = (data['portfolio'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
+        const Text('INVESTMENT OPPORTUNITIES', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+        const SizedBox(height: 5),
+        const Text('Review the currently active packages. Package details are read from Monarch Codex; no projected returns are invented.', style: TextStyle(color: muted)),
+        const SizedBox(height: 12),
+        if (packages.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No active investment packages are available right now.', textAlign: TextAlign.center))),
+        ...packages.map((p) {
+          final terms = (p['terms'] ?? '').toString().trim();
+          final description = (p['description'] ?? '').toString().trim();
+          return Card(color: widget.dark ? panel : Colors.white, child: ExpansionTile(
+            leading: const Icon(Icons.workspace_premium, color: gold),
+            title: Text((p['name'] ?? 'Investment package').toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(money(p['currency'], p['price']) + ' · ' + ((p['durationDays'] == null || p['durationDays'].toString().isEmpty) ? 'Flexible duration' : '${p['durationDays']} days'), style: const TextStyle(color: gold, fontWeight: FontWeight.w800))),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              if (description.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(description)),
+              if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
+              const SizedBox(height: 8),
+              const Align(alignment: Alignment.centerLeft, child: Text('Review the terms before investing. No purchase or wallet change is performed from this view.', style: TextStyle(color: muted, fontSize: 11))),
+            ],
+          ));
+        }),
+        const SizedBox(height: 20),
+        Row(children: [const Expanded(child: Text('MY PORTFOLIO', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1))), IconButton(onPressed: reload, icon: const Icon(Icons.refresh, color: gold), tooltip: 'Refresh investments')]),
+        if (portfolio.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Your recorded investments will appear here once you have an investment on your account.', textAlign: TextAlign.center))),
+        ...portfolio.map((p) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(
+          leading: const Icon(Icons.account_balance_wallet_outlined, color: gold),
+          title: Text((p['packageName'] ?? 'Investment').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text('Principal: ' + money(p['currency'], p['principalAmount']) + '\nTotal charged: ' + money(p['currency'], p['totalCharged']) + '\nStatus: ' + (p['status'] ?? 'unknown').toString().toUpperCase() + '\nStarted: ' + (p['startsAt'] ?? '—').toString() + ((p['maturesAt'] == null) ? '' : '\nMatures: ' + p['maturesAt'].toString()))),
+          isThreeLine: true,
+        ))),
+      ]));
+    },
+  );
+}
+
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key,required this.api,required this.dark});
   final MonarchApi api; final bool dark;
@@ -374,7 +538,7 @@ class _ShellState extends State<Shell> {
           ])),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
-        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
+        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 2 ? InvestmentsPage(api: widget.api, dark: dark) : tab == 3 ? MarketPage(api: widget.api, dark: dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], 'Market information', icons[tab], 'Live market quotes are not displayed until a verified quote provider is connected. No placeholder prices are shown as real market data.', dark)),
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
