@@ -730,7 +730,18 @@ class LiveMarketsPage extends StatefulWidget {
 
 class _LiveMarketsPageState extends State<LiveMarketsPage> {
   late Future<Map<String, dynamic>> future;
-  @override void initState() { super.initState(); future = _load(); }
+  Timer? refreshTimer;
+  @override void initState() {
+    super.initState();
+    future = _load();
+    refreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) reload();
+    });
+  }
+  @override void dispose() {
+    refreshTimer?.cancel();
+    super.dispose();
+  }
   Future<Map<String, dynamic>> _load() async {
     final response = await widget.api.dio.get<dynamic>('$site/api/live-markets/crypto?convert=USD', options: Options(headers: const {'Accept':'application/json'}));
     if (response.data is! Map) throw Exception('The market provider returned an invalid response.');
