@@ -29,7 +29,7 @@ jobs:
       - run: flutter pub get
       - run: dart run flutter_launcher_icons
       - run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
-      - run: dart format --output=none lib
+      - run: dart format lib
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
       - run: flutter build apk --release
