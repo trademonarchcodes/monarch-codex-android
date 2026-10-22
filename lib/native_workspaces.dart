@@ -2,9 +2,32 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:monarch_codex/main.dart';
+
+Future<void> confirmAppExit(BuildContext context) async {
+  final shouldExit = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Exit Monarch Codex?'),
+      content: const Text('Would you like to close the app?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(false),
+          child: const Text('Stay'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(true),
+          style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink),
+          child: const Text('Exit'),
+        ),
+      ],
+    ),
+  );
+  if (shouldExit == true) await SystemNavigator.pop();
+}
 
 String _workspaceError(Object error) {
   if (error is DioException) {
@@ -19,6 +42,201 @@ Future<void> _openAdminRoute(String route) async {
   final uri=Uri.parse('$site$route');
   final opened=await launchUrl(uri,mode:LaunchMode.externalApplication);
   if(!opened) throw Exception('Could not open the administrator review page.');
+}
+
+class AdminFeedbackPage extends StatefulWidget {
+  const AdminFeedbackPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+
+  @override
+  State<AdminFeedbackPage> createState() => _AdminFeedbackPageState();
+}
+
+class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
+  late Future<Map<String, dynamic>> future;
+  final Map<int, TextEditingController> notes = {};
+  bool busy = false;
+  String? message;
+
+  @override
+  void initState() {
+    super.initState();
+    future = widget.api.adminFeedback();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in notes.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void reload() {
+    setState(() {
+      future = widget.api.adminFeedback();
+    });
+  }
+
+  Future<void> review(Map<String, dynamic> item, String status) async {
+    final id = (item['id'] as num).toInt();
+    setState(() => busy = true);
+    try {
+      final controller = notes.putIfAbsent(
+        id,
+        () => TextEditingController(text: (item['adminNote'] ?? '').toString()),
+      );
+      await widget.api.reviewAdminFeedback(
+        id: id,
+        status: status,
+        note: controller.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        message = 'Feedback status updated.';
+        future = widget.api.adminFeedback();
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        message = 'Could not update feedback. Check your permissions and try again.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: gold));
+        }
+        if (snapshot.hasError) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('Member feedback could not be loaded.'),
+              FilledButton(onPressed: reload, child: const Text('Retry')),
+            ],
+          );
+        }
+
+        final rawItems = snapshot.data?['items'] as List? ?? const [];
+        final items = rawItems
+            .whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList();
+
+        return ListView(
+          padding: const EdgeInsets.all(15),
+          children: [
+            const Text(
+              'MEMBER FEEDBACK',
+              style: TextStyle(
+                color: gold,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Review requests, bugs and improvement ideas. Members see status changes in their feedback history.',
+              style: TextStyle(color: muted),
+            ),
+            if (message != null)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(message!, style: const TextStyle(color: gold)),
+              ),
+            if (items.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(22),
+                child: Text(
+                  'No feedback has been submitted yet.',
+                  style: TextStyle(color: muted),
+                ),
+              ),
+            for (final entry in items) _feedbackCard(entry),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _feedbackCard(Map<String, dynamic> item) {
+    final id = (item['id'] as num).toInt();
+    final controller = notes.putIfAbsent(
+      id,
+      () => TextEditingController(text: (item['adminNote'] ?? '').toString()),
+    );
+    final category = (item['category'] ?? 'other').toString().replaceAll('_', ' ');
+    final status = (item['status'] ?? 'received').toString().replaceAll('_', ' ');
+
+    return Card(
+      color: widget.dark ? panel : Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(13),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (item['title'] ?? 'Feedback').toString(),
+              style: const TextStyle(color: gold, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              (item['memberName'] ?? 'Member').toString() + ' · ' + category,
+              style: const TextStyle(color: muted, fontSize: 11),
+            ),
+            const SizedBox(height: 8),
+            Text((item['description'] ?? '').toString()),
+            const SizedBox(height: 8),
+            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w800)),
+            TextField(
+              controller: controller,
+              maxLines: 2,
+              maxLength: 2000,
+              decoration: const InputDecoration(
+                labelText: 'Update for member / reason',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'under_review'),
+                  child: const Text('Review'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'planned'),
+                  child: const Text('Plan'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'in_progress'),
+                  child: const Text('In progress'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'implemented'),
+                  child: const Text('Implemented'),
+                ),
+                OutlinedButton(
+                  onPressed: busy ? null : () => review(item, 'declined'),
+                  child: const Text('Decline'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class AdminShell extends StatefulWidget {
@@ -54,6 +272,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:(widget.member['id'] as num?)?.toInt()??(widget.member['memberId'] as num?)?.toInt()??-1);
     if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
     if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
+    if(index==12)page=AdminFeedbackPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -75,7 +294,22 @@ class _AdminShellState extends State<AdminShell>{
 
   @override Widget build(BuildContext context){
     final dark=Theme.of(context).brightness==Brightness.dark;
-    return Scaffold(
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (scaffoldKey.currentState?.isDrawerOpen == true) {
+          scaffoldKey.currentState?.closeDrawer();
+          return;
+        }
+        if (selected != 0) {
+          setState(() => selected = 0);
+          reload();
+          return;
+        }
+        confirmAppExit(context);
+      },
+      child: Scaffold(
       key:scaffoldKey,
       drawer:Drawer(
         backgroundColor:dark?const Color(0xFF10110F):const Color(0xFFF6F4ED),
@@ -103,6 +337,7 @@ class _AdminShellState extends State<AdminShell>{
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(9,Icons.admin_panel_settings_outlined,'Admin permissions'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
+            if(['super_admin','main_admin'].contains((widget.member['adminRole']??'').toString())) _navItem(12,Icons.feedback_outlined,'Member feedback'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -149,7 +384,7 @@ class _AdminShellState extends State<AdminShell>{
           const SizedBox(height:12),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of administrator account')),
         ]);
       }),
-    );
+    ));
   }
   Widget _stat(String label,dynamic value,IconData icon,bool dark)=>Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[Icon(icon,color:gold,size:20),const SizedBox(height:10),Text((value??'—').toString(),style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(label,style:const TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w900))]));
 }
@@ -283,11 +518,11 @@ class _SovereignAdminShellState extends State<SovereignAdminShell>{
  final company=TextEditingController(text:'Sovereign Desk');final message=TextEditingController(text:'Request Partner role for the Sovereign Desk company.');bool busy=false;String? error,notice;
  @override void dispose(){company.dispose();message.dispose();super.dispose();}
  Future<void> requestPartner()async{setState(()=>busy=true);try{await widget.api.requestSovereignPartner(companyName:company.text.trim(),message:message.text.trim());if(mounted)setState(()=>notice='Partner request submitted for review.');}catch(e){if(mounted)setState(()=>error=e is DioException&&e.response?.data is Map?((e.response!.data as Map)['message']??'Request failed').toString():e.toString());}finally{if(mounted)setState(()=>busy=false);}}
- @override Widget build(BuildContext context){final dark=Theme.of(context).brightness==Brightness.dark;return Scaffold(appBar:AppBar(automaticallyImplyLeading:false,title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:34,height:34),const SizedBox(width:8),const Expanded(child:Text('SOVEREIGN DESK CONTROL',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),actions:[IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold)),IconButton(onPressed:()=>launchUrl(Uri.parse('$site/sovereign-admin'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new,color:gold),tooltip:'Open full Sovereign Desk dashboard')]),body:ListView(padding:const EdgeInsets.all(16),children:[
+ @override Widget build(BuildContext context){final dark=Theme.of(context).brightness==Brightness.dark;return PopScope<Object?>(canPop:false,onPopInvokedWithResult:(didPop,result){if(!didPop)confirmAppExit(context);},child:Scaffold(appBar:AppBar(automaticallyImplyLeading:false,title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:34,height:34),const SizedBox(width:8),const Expanded(child:Text('SOVEREIGN DESK CONTROL',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),actions:[IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold)),IconButton(onPressed:()=>launchUrl(Uri.parse('$site/sovereign-admin'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new,color:gold),tooltip:'Open full Sovereign Desk dashboard')]),body:ListView(padding:const EdgeInsets.all(16),children:[
  Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('SOVEREIGN DESK · PRIVATE WORKSPACE',style:TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900,letterSpacing:1.1)),const SizedBox(height:10),const Text('Sovereign Desk administration',style:TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text('Signed in as '+(widget.member['fullName']??'Sovereign Desk administrator').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:8),const Text('This workspace is separate from Monarch Codex financial administration.',style:TextStyle(color:muted,fontSize:12))])),
- const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('PARTNER ROLE REQUEST',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Request Partner status for the company. Founder is a separate role available in the member role list. This request goes to Monarch Codex administrators and does not grant access automatically.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:12),TextField(controller:company,decoration:const InputDecoration(labelText:'Company / partner name')),const SizedBox(height:10),TextField(controller:message,maxLines:3,decoration:const InputDecoration(labelText:'Reason for request')),const SizedBox(height:12),if(error!=null)Message(text:error!,success:false),if(notice!=null)Message(text:notice!,success:true),FilledButton(onPressed:busy?null:requestPartner,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48)),child:Text(busy?'Submitting…':'Request Partner role'))])),
+ const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('PARTNER ROLE REQUEST',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Request Partner status for the company. Founder is reserved exclusively for the Monarch Codex Super Admin and is not available to other members. This request goes to Monarch Codex administrators and does not grant access automatically.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:12),TextField(controller:company,decoration:const InputDecoration(labelText:'Company / partner name')),const SizedBox(height:10),TextField(controller:message,maxLines:3,decoration:const InputDecoration(labelText:'Reason for request')),const SizedBox(height:12),if(error!=null)Message(text:error!,success:false),if(notice!=null)Message(text:notice!,success:true),FilledButton(onPressed:busy?null:requestPartner,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48)),child:Text(busy?'Submitting…':'Request Partner role'))])),
  const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('SIGNALS & GUIDANCE',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Open the dedicated Sovereign Desk dashboard to manage its signals and guidance. This does not open Monarch Codex financial administration.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),FilledButton.icon(onPressed:()=>launchUrl(Uri.parse('$site/sovereign-admin'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new),label:const Text('Open Sovereign Desk dashboard'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink))])),
- const SizedBox(height:14),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of Sovereign Desk'))]));}
+ const SizedBox(height:14),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of Sovereign Desk'))])));}
 }
 
 class KycStatusPage extends StatefulWidget {

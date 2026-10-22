@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
@@ -44,6 +45,8 @@ class MonarchApi {
       Map<String, dynamic>.from((await dio.post('auth/register', data: data)).data as Map);
   Future<Map<String, dynamic>> overview() async =>
       Map<String, dynamic>.from((await dio.get('overview')).data as Map);
+  Future<Map<String, dynamic>> investments() async =>
+      Map<String, dynamic>.from((await dio.get('investments')).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
@@ -77,6 +80,20 @@ class MonarchApi {
   Future<void> markAllNotificationsRead() async { await dio.post('notifications/read-all'); }
   Future<Map<String,dynamic>> communityPosts() async => Map<String,dynamic>.from((await dio.get('community/posts')).data as Map);
   Future<Map<String,dynamic>> createCommunityPost(String body) async => Map<String,dynamic>.from((await dio.post('community/posts',data:{'body':body,'type':'post'})).data as Map);
+  Future<void> presenceHeartbeat() async { await dio.post('presence/heartbeat'); }
+  Future<Map<String,dynamic>> presenceSettings() async => Map<String,dynamic>.from((await dio.get('presence/settings')).data as Map);
+  Future<Map<String,dynamic>> savePresenceSettings(bool showStatus) async => Map<String,dynamic>.from((await dio.put('presence/settings',data:{'showStatus':showStatus})).data as Map);
+  Future<Map<String,dynamic>> submitFeedback({required String category,required String title,required String description,PlatformFile? image}) async {
+    final fields=<String,dynamic>{'category':category,'title':title,'description':description};
+    if(image!=null){final bytes=image.bytes;if(bytes==null||bytes.isEmpty)throw Exception('The selected image could not be read.');if(bytes.length>5*1024*1024)throw Exception('Choose an image smaller than 5 MB.');final ext=(image.extension??'').toLowerCase();final mime=ext=='jpg'||ext=='jpeg'?'image/jpeg':ext=='png'?'image/png':ext=='webp'?'image/webp':'';if(mime.isEmpty)throw Exception('Choose a JPG, PNG or WebP image.');fields['image']=MultipartFile.fromBytes(bytes,filename:image.name,contentType:DioMediaType.parse(mime));}
+    return Map<String,dynamic>.from((await dio.post('feedback',data:FormData.fromMap(fields))).data as Map);
+  }
+  Future<Map<String,dynamic>> feedbackList() async => Map<String,dynamic>.from((await dio.get('feedback')).data as Map);
+  Future<Uint8List> communityImage(int id) async {final r=await dio.get<List<int>>('community/posts/$id/image',options:Options(responseType:ResponseType.bytes));return Uint8List.fromList(r.data??const <int>[]);}
+  Future<Map<String,dynamic>> createCommunityPostWithImage(String body,PlatformFile? image) async {
+    if(image==null)return createCommunityPost(body);final bytes=image.bytes;if(bytes==null||bytes.isEmpty)throw Exception('The selected image could not be read.');if(bytes.length>5*1024*1024)throw Exception('Choose an image smaller than 5 MB.');final ext=(image.extension??'').toLowerCase();final mime=ext=='jpg'||ext=='jpeg'?'image/jpeg':ext=='png'?'image/png':ext=='webp'?'image/webp':'';if(mime.isEmpty)throw Exception('Choose a JPG, PNG or WebP image.');
+    return Map<String,dynamic>.from((await dio.post('community/posts/media',data:FormData.fromMap({'body':body,'type':'post','image':MultipartFile.fromBytes(bytes,filename:image.name,contentType:DioMediaType.parse(mime))}))).data as Map);
+  }
   Future<Map<String,dynamic>> communityComments(int postId) async => Map<String,dynamic>.from((await dio.get('community/posts/$postId/comments')).data as Map);
   Future<Map<String,dynamic>> createCommunityComment(int postId,String body) async => Map<String,dynamic>.from((await dio.post('community/posts/$postId/comments',data:{'body':body})).data as Map);
   Future<Map<String,dynamic>> cooperativeStatus() async => Map<String,dynamic>.from((await dio.get('cooperative/status')).data as Map);
@@ -85,6 +102,8 @@ class MonarchApi {
   Future<Map<String,dynamic>> adminCooperativeConnections() async => Map<String,dynamic>.from((await dio.get('admin/cooperative/connections')).data as Map);
   Future<Map<String,dynamic>> reviewCooperativeConnection({required int id,required String decision,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/cooperative/connections/$id/review',data:{'decision':decision,'note':note})).data as Map);
   Future<Map<String,dynamic>> adminSocialLinks() async => Map<String,dynamic>.from((await dio.get('admin/social-links')).data as Map);
+  Future<Map<String,dynamic>> adminFeedback() async => Map<String,dynamic>.from((await dio.get('admin/feedback')).data as Map);
+  Future<Map<String,dynamic>> reviewAdminFeedback({required int id,required String status,required String note}) async => Map<String,dynamic>.from((await dio.post('admin/feedback/$id/review',data:{'status':status,'note':note})).data as Map);
   Future<Map<String,dynamic>> saveAdminSocialLink({required String key,required String label,required String url,required bool active}) async => Map<String,dynamic>.from((await dio.post('admin/social-links',data:{'key':key,'label':label,'url':url,'active':active})).data as Map);
   Future<Map<String,dynamic>> adminPermissions() async => Map<String,dynamic>.from((await dio.get('admin/permissions')).data as Map);
   Future<Map<String,dynamic>> saveAdminPermission({required int adminMemberId,required String category,required String level,required List<String> allowedActions}) async => Map<String,dynamic>.from((await dio.post('admin/permissions',data:{'adminMemberId':adminMemberId,'category':category,'level':level,'allowedActions':allowedActions})).data as Map);
@@ -281,26 +300,147 @@ class _NotificationsPageState extends State<NotificationsPage>{
   });
 }
 
+class InvestmentsPage extends StatefulWidget {
+  const InvestmentsPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<InvestmentsPage> createState() => _InvestmentsPageState();
+}
+
+class _InvestmentsPageState extends State<InvestmentsPage> {
+  late Future<Map<String, dynamic>> future;
+  @override void initState() { super.initState(); future = widget.api.investments(); }
+  void reload() => setState(() => future = widget.api.investments());
+  String money(dynamic currency, dynamic amount) {
+    final value = double.tryParse((amount ?? '0').toString()) ?? 0;
+    return '${currency ?? ''} ${value.toStringAsFixed(2)}';
+  }
+  @override Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
+    future: future,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator(color: gold));
+      if (snapshot.hasError) return ListView(padding: const EdgeInsets.all(20), children: [
+        const Icon(Icons.trending_up, color: gold, size: 42),
+        const SizedBox(height: 10),
+        const Text('Investment information is temporarily unavailable. Your wallet has not been changed.'),
+        const SizedBox(height: 12),
+        FilledButton(onPressed: reload, child: const Text('Retry')),
+      ]);
+      final data = snapshot.data ?? {};
+      final packages = (data['packages'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final portfolio = (data['portfolio'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      return RefreshIndicator(color: gold, onRefresh: () async { reload(); await future; }, child: ListView(padding: const EdgeInsets.all(15), children: [
+        const Text('INVESTMENT OPPORTUNITIES', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+        const SizedBox(height: 5),
+        const Text('Review the currently active packages. Package details are read from Monarch Codex; no projected returns are invented.', style: TextStyle(color: muted)),
+        const SizedBox(height: 12),
+        if (packages.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('No active investment packages are available right now.', textAlign: TextAlign.center))),
+        ...packages.map((p) {
+          final terms = (p['terms'] ?? '').toString().trim();
+          final description = (p['description'] ?? '').toString().trim();
+          return Card(color: widget.dark ? panel : Colors.white, child: ExpansionTile(
+            leading: const Icon(Icons.workspace_premium, color: gold),
+            title: Text((p['name'] ?? 'Investment package').toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Padding(padding: const EdgeInsets.only(top: 5), child: Text(money(p['currency'], p['price']) + ' · ' + ((p['durationDays'] == null || p['durationDays'].toString().isEmpty) ? 'Flexible duration' : '${p['durationDays']} days'), style: const TextStyle(color: gold, fontWeight: FontWeight.w800))),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              if (description.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(description)),
+              if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
+              const SizedBox(height: 8),
+              const Align(alignment: Alignment.centerLeft, child: Text('Review the terms before investing. No purchase or wallet change is performed from this view.', style: TextStyle(color: muted, fontSize: 11))),
+            ],
+          ));
+        }),
+        const SizedBox(height: 20),
+        Row(children: [const Expanded(child: Text('MY PORTFOLIO', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1))), IconButton(onPressed: reload, icon: const Icon(Icons.refresh, color: gold), tooltip: 'Refresh investments')]),
+        if (portfolio.isEmpty) const Card(child: Padding(padding: EdgeInsets.all(18), child: Text('Your recorded investments will appear here once you have an investment on your account.', textAlign: TextAlign.center))),
+        ...portfolio.map((p) => Card(color: widget.dark ? panel : Colors.white, child: ListTile(
+          leading: const Icon(Icons.account_balance_wallet_outlined, color: gold),
+          title: Text((p['packageName'] ?? 'Investment').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+          subtitle: Padding(padding: const EdgeInsets.only(top: 6), child: Text('Principal: ' + money(p['currency'], p['principalAmount']) + '\nTotal charged: ' + money(p['currency'], p['totalCharged']) + '\nStatus: ' + (p['status'] ?? 'unknown').toString().toUpperCase() + '\nStarted: ' + (p['startsAt'] ?? '—').toString() + ((p['maturesAt'] == null) ? '' : '\nMatures: ' + p['maturesAt'].toString()))),
+          isThreeLine: true,
+        ))),
+      ]));
+    },
+  );
+}
+
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key,required this.api,required this.dark});
   final MonarchApi api; final bool dark;
   @override State<CommunityPage> createState()=>_CommunityPageState();
 }
 class _CommunityPageState extends State<CommunityPage>{
-  final composer=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;
+  final composer=TextEditingController();late Future<Map<String,dynamic>> future;bool sending=false;String? message;bool success=false;PlatformFile? image;
   @override void initState(){super.initState();future=widget.api.communityPosts();}
   void reload()=>setState(()=>future=widget.api.communityPosts());
-  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState(() { sending=true; message=null; });try{final r=await widget.api.createCommunityPost(body);composer.clear();if(mounted)setState(() { sending=false; message=(r['message']??'Post published.').toString(); success=true; });reload();}catch(e){if(mounted)setState(() { sending=false; message='Could not publish your post. Please try again.'; success=false; });}}
+  Future<void> chooseImage()async{final r=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);if(r!=null&&r.files.isNotEmpty&&mounted)setState(()=>image=r.files.first);}
+  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState((){sending=true;message=null;});try{final r=await widget.api.createCommunityPostWithImage(body,image);composer.clear();if(mounted)setState((){sending=false;image=null;message=(r['message']??'Post published.').toString();success=true;});reload();}catch(_){if(mounted)setState((){sending=false;message='Could not publish your post. Check your connection and image format.';success=false;});}}
+  String presenceLabel(Map<String,dynamic> p){if(p['authorOnline']==true||p['authorOnline']==1)return 'Online now';final raw=p['authorLastSeen'];if(raw==null)return 'Status unavailable';final dt=DateTime.tryParse(raw.toString());if(dt==null)return 'Last seen recently';final d=DateTime.now().difference(dt.toLocal());if(d.inMinutes<1)return 'Last seen just now';if(d.inMinutes<60)return 'Last seen '+d.inMinutes.toString()+'m ago';if(d.inHours<24)return 'Last seen '+d.inHours.toString()+'h ago';return 'Last seen '+d.inDays.toString()+'d ago';}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
     const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-    const SizedBox(height:5),const Text('Share an update, ask a question, and connect with members.',style:TextStyle(color:muted)),
-    const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+    const SizedBox(height:5),const Text('Share updates, ask questions, and connect with members. Images are optional.',style:TextStyle(color:muted)),
+    const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
       TextField(controller:composer,maxLines:4,maxLength:5000,decoration:const InputDecoration(hintText:'What would you like to share?',border:OutlineInputBorder())),
-      const SizedBox(height:8),Row(children:[if(message!=null)Expanded(child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent,fontSize:12))),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))])
+      if(image!=null)Text('Attached: '+image!.name,style:const TextStyle(color:muted,fontSize:11)),
+      const SizedBox(height:8),Row(children:[Expanded(child:OutlinedButton.icon(onPressed:sending?null:chooseImage,icon:const Icon(Icons.image_outlined),label:const Text('Add image (optional)'))),const SizedBox(width:8),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))]),
+      if(message!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent,fontSize:12))),
+      TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>FeedbackPage(api:widget.api,dark:widget.dark))),icon:const Icon(Icons.feedback_outlined),label:const Text('Feedback & Suggestions'))
     ]))),
     const SizedBox(height:14),Row(children:[const Expanded(child:Text('COMMUNITY FEED',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
-    FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));if(snapshot.hasError)return const Padding(padding:EdgeInsets.all(12),child:Text('The community feed is not available yet. Please try again later.',style:TextStyle(color:muted)));final posts=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(posts.isEmpty)return const Padding(padding:EdgeInsets.all(22),child:Text('No posts yet. Be the first to start a conversation.',textAlign:TextAlign.center,style:TextStyle(color:muted)));return Column(children:posts.map((p)=>Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800)),const SizedBox(height:7),Text((p['body']??'').toString()),const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))])))).toList());})
+    FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+      if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
+      if(snapshot.hasError)return const Padding(padding:EdgeInsets.all(12),child:Text('The community feed is not available yet. Please try again later.',style:TextStyle(color:muted)));
+      final posts=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+      if(posts.isEmpty)return const Padding(padding:EdgeInsets.all(22),child:Text('No posts yet. Be the first to start a conversation.',textAlign:TextAlign.center,style:TextStyle(color:muted)));
+      return Column(children:posts.map((p)=>Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[const Icon(Icons.account_circle_outlined,color:gold,size:20),const SizedBox(width:7),Expanded(child:Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800))),Container(width:7,height:7,decoration:BoxDecoration(color:(p['authorOnline']==true||p['authorOnline']==1)?Colors.green:muted,shape:BoxShape.circle)),const SizedBox(width:5),Flexible(child:Text(presenceLabel(p),style:const TextStyle(color:muted,fontSize:10),overflow:TextOverflow.ellipsis))]),
+        const SizedBox(height:7),Text((p['body']??'').toString()),
+        if(p['hasImage']==true||p['hasImage']==1)Padding(padding:const EdgeInsets.only(top:10),child:FutureBuilder<Uint8List>(future:widget.api.communityImage((p['id'] as num).toInt()),builder:(context,s)=>s.hasData?ClipRRect(borderRadius:BorderRadius.circular(12),child:Image.memory(s.data!,fit:BoxFit.cover)):s.hasError?const SizedBox.shrink():const SizedBox(height:90,child:Center(child:CircularProgressIndicator(strokeWidth:2,color:gold))))),
+        const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))
+      ])))).toList());
+    })
   ]);
+}
+
+class FeedbackPage extends StatefulWidget {
+  const FeedbackPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<FeedbackPage> createState()=>_FeedbackPageState();
+}
+class _FeedbackPageState extends State<FeedbackPage>{
+  final title=TextEditingController(),description=TextEditingController();String category='feature_request';PlatformFile? image;bool sending=false;String? message;bool success=false;late Future<Map<String,dynamic>> future;
+  @override void initState(){super.initState();future=widget.api.feedbackList();}
+  @override void dispose(){title.dispose();description.dispose();super.dispose();}
+  void reload()=>setState(()=>future=widget.api.feedbackList());
+  Future<void> chooseImage()async{final r=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);if(r!=null&&r.files.isNotEmpty&&mounted)setState(()=>image=r.files.first);}
+  Future<void> submit()async{if(title.text.trim().length<3||description.text.trim().length<5){setState(()=>message='Please add a clear title and description.');return;}setState(()=>sending=true);try{await widget.api.submitFeedback(category:category,title:title.text.trim(),description:description.text.trim(),image:image);if(mounted){setState((){sending=false;message='Thank you. Your feedback has been received.';success=true;image=null;});title.clear();description.clear();reload();}}catch(_){if(mounted)setState((){sending=false;message='Could not submit feedback. Check your connection and image size.';success=false;});}}
+  @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
+    const Text('FEEDBACK & SUGGESTIONS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:6),const Text('Tell us what should be added, improved, or fixed. Images are optional.',style:TextStyle(color:muted)),
+    const SizedBox(height:12),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(13),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      DropdownButtonFormField<String>(value:category,decoration:const InputDecoration(labelText:'Feedback category',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'feature_request',child:Text('Feature request')),DropdownMenuItem(value:'bug_report',child:Text('Something is broken')),DropdownMenuItem(value:'improvement',child:Text('Improvement')),DropdownMenuItem(value:'other',child:Text('Other feedback'))],onChanged:sending?null:(v)=>setState(()=>category=v??'other')),
+      const SizedBox(height:10),TextField(controller:title,maxLength:160,decoration:const InputDecoration(labelText:'Title',border:OutlineInputBorder())),
+      const SizedBox(height:10),TextField(controller:description,maxLines:5,maxLength:5000,decoration:const InputDecoration(labelText:'Describe your idea or problem',border:OutlineInputBorder())),
+      OutlinedButton.icon(onPressed:sending?null:chooseImage,icon:const Icon(Icons.image_outlined),label:Text(image==null?'Attach image (optional)':image!.name)),
+      if(image!=null)TextButton(onPressed:()=>setState(()=>image=null),child:const Text('Remove image')),
+      if(message!=null)Padding(padding:const EdgeInsets.only(bottom:8),child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent))),
+      SizedBox(width:double.infinity,child:FilledButton(onPressed:sending?null:submit,child:Text(sending?'Submitting…':'Submit feedback')))
+    ]))),
+    const SizedBox(height:18),const Text('YOUR FEEDBACK HISTORY',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1)),
+    FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Padding(padding:EdgeInsets.all(12),child:Center(child:CircularProgressIndicator(color:gold)));if(s.hasError)return const Text('Could not load feedback history.',style:TextStyle(color:muted));final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(items.isEmpty)return const Padding(padding:EdgeInsets.all(16),child:Text('Your submitted feedback will appear here.',style:TextStyle(color:muted)));return Column(children:items.map((x)=>Card(color:widget.dark?panel:Colors.white,child:ListTile(isThreeLine:true,leading:const Icon(Icons.feedback_outlined,color:gold),title:Text((x['title']??'Feedback').toString()),subtitle:Text((x['category']??'').toString().replaceAll('_',' ')+' · '+(x['status']??'received').toString().replaceAll('_',' ')+(x['adminNote']==null?'':'\nAdmin note: '+x['adminNote'].toString())),trailing:(x['hasImage']==true||x['hasImage']==1)?const Icon(Icons.image,color:gold):null))).toList());})
+  ]);
+}
+
+class PresencePrivacyPage extends StatefulWidget {
+  const PresencePrivacyPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;final bool dark;
+  @override State<PresencePrivacyPage> createState()=>_PresencePrivacyPageState();
+}
+class _PresencePrivacyPageState extends State<PresencePrivacyPage>{
+  late Future<Map<String,dynamic>> future;bool busy=false;String? message;
+  @override void initState(){super.initState();future=widget.api.presenceSettings();}
+  Future<void> save(bool value)async{setState(()=>busy=true);try{await widget.api.savePresenceSettings(value);if(mounted)setState((){busy=false;message=value?'Online status is visible to members.':'Online status and last seen are hidden.';future=widget.api.presenceSettings();});}catch(_){if(mounted)setState((){busy=false;message='Could not update privacy settings.';});}}
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));final visible=s.data?['showStatus']!=false;return ListView(padding:const EdgeInsets.all(16),children:[const Text('ONLINE STATUS PRIVACY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:8),const Text('When enabled, members can see whether you are online and when you were last active. Status expires automatically when activity stops.',style:TextStyle(color:muted)),const SizedBox(height:14),SwitchListTile(value:visible,onChanged:busy?null:save,activeColor:gold,title:const Text('Show online status and last seen'),subtitle:const Text('You can change this setting at any time.'),tileColor:widget.dark?panel:Colors.white),if(message!=null)Padding(padding:const EdgeInsets.all(12),child:Text(message!,style:const TextStyle(color:gold)))]);});
 }
 
 class OnlineCooperativePage extends StatefulWidget {
@@ -352,7 +492,9 @@ class _ShellState extends State<Shell> {
   Map<String, dynamic>? data;
   static const names = ['Overview', 'Wallet', 'Invest', 'Market', 'Community', 'Profile'];
   static const icons = [Icons.grid_view_rounded, Icons.account_balance_wallet_rounded, Icons.trending_up_rounded, Icons.show_chart_rounded, Icons.groups_rounded, Icons.person_rounded];
-  @override void initState() { super.initState(); refresh(); }
+  Timer? presenceTimer;
+  @override void initState() { super.initState(); refresh(); widget.api.presenceHeartbeat().catchError((_){}); presenceTimer=Timer.periodic(const Duration(seconds:45),(_)=>widget.api.presenceHeartbeat().catchError((_){})); }
+  @override void dispose(){presenceTimer?.cancel();super.dispose();}
   Future<void> refresh() async {
     setState(() { loading = true; error = null; });
     try { final result = await widget.api.overview(); if (mounted) setState(() { data = result; loading = false; }); }
@@ -362,7 +504,16 @@ class _ShellState extends State<Shell> {
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final title = special ?? names[tab];
-    return Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (menu) { setState(() => menu = false); return; }
+        if (special != null) { setState(() => special = null); return; }
+        if (tab != 0) { setState(() => tab = 0); return; }
+        confirmAppExit(context);
+      },
+      child: Scaffold(body: SafeArea(child: Stack(clipBehavior: Clip.hardEdge, children: [
       Positioned.fill(child: AnimatedPadding(duration: const Duration(milliseconds: 220), curve: Curves.easeOutCubic, padding: EdgeInsets.only(left: menu ? 214 : 0), child: SizedBox(width: MediaQuery.sizeOf(context).width, child: Column(children: [
         Padding(padding: const EdgeInsets.fromLTRB(10, 6, 10, 10), child: Row(children: [
           IconButton(onPressed: () => setState(() => menu = !menu), icon: Icon(menu ? Icons.close : Icons.menu, color: gold)),
@@ -374,11 +525,11 @@ class _ShellState extends State<Shell> {
           ])),
           IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
         ])),
-        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], tab == 2 ? 'Investment packages and recorded purchases' : tab == 3 ? 'Market information' : 'Grow with the Monarch community', icons[tab], tab == 2 ? 'Your investment records will appear here when the mobile investment API is connected. No returns are invented.' : tab == 3 ? 'Live market feeds are being connected. No placeholder prices are displayed.' : 'Sovereign Desk and community access will respect your existing member permissions.', dark)),
+        Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 2 ? InvestmentsPage(api: widget.api, dark: dark) : tab == 5 ? profilePage(dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], 'Market information', icons[tab], 'Live market quotes are not displayed until a verified quote provider is connected. No placeholder prices are shown as real market data.', dark)),
         if (special == null) bottomNav(dark),
       ])))),
       if (menu) Positioned(left: 0, top: 0, bottom: 0, width: 214, child: sidebar(dark)),
-    ])));
+    ]))));
   }
 
   Widget overviewPage(bool dark) {
@@ -415,6 +566,7 @@ class _ShellState extends State<Shell> {
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
         quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
         quick('Social Links', Icons.public, () => page('Social Links'), dark),
+        quick('Feedback', Icons.feedback_outlined, () => page('Feedback & Suggestions'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -448,6 +600,7 @@ class _ShellState extends State<Shell> {
       tile(widget.light ? 'Dark appearance' : 'Light appearance', 'Toggle app appearance.', Icons.contrast, dark, widget.toggleTheme),
       tile('Account details', 'Open your existing profile page.', Icons.manage_accounts, dark, () => openSite('/profile')),
       tile('Password recovery', 'Secure password reset.', Icons.lock_reset, dark, () => openSite('/forgot-password')),
+      tile('Online status privacy', 'Choose whether members can see your online and last-seen status.', Icons.visibility_outlined, dark, () => page('Presence Privacy')),
     ]);
     if (p == 'Help & Support') return ListView(padding: const EdgeInsets.all(15), children: [
       featurePage(p, 'We are here to help', Icons.support_agent, 'For account access, verification or payment questions, contact official Monarch Codex support.', dark),
@@ -458,6 +611,8 @@ class _ShellState extends State<Shell> {
     if (p == 'Referrals') return ReferralsPage(api: widget.api, dark: dark);
     if (p == 'Online Cooperative') return OnlineCooperativePage(api: widget.api, dark: dark);
     if (p == 'Social Links') return SocialLinksPage(api: widget.api, dark: dark);
+    if (p == 'Feedback & Suggestions') return FeedbackPage(api: widget.api, dark: dark);
+    if (p == 'Presence Privacy') return PresencePrivacyPage(api: widget.api, dark: dark);
     return featurePage(p, 'Monarch Codex', Icons.auto_awesome, 'This section will connect to your existing account backend. Existing records are not changed.', dark);
   }
 

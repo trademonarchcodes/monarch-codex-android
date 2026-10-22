@@ -39,3 +39,8 @@ The Android app uses the shared API at `https://monarchcodex.online/api/mobile`.
 - Do not distribute an APK unless the workflow has succeeded and the artifact has been checked.
 - The companion backend requires the additive migration `migrations/021_platform_completion_foundation.sql`. Apply it only after taking a verified database backup and reviewing the schema.
 - Online Cooperative verification is manual. The member submits their registration name and email; the Super Admin confirms with the Cooperative administrator. Never request a Cooperative password or OTP.
+
+
+## Android system Back navigation
+
+The app handles the Android system Back button and gesture inside Member, Admin, and Sovereign Desk workspaces. It returns to the prior in-app screen or Overview where appropriate and asks for confirmation before exiting from a dashboard root. Verify the latest Flutter checks and release APK build before installing this change.
