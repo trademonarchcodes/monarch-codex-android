@@ -44,3 +44,12 @@ The Android app uses the shared API at `https://monarchcodex.online/api/mobile`.
 ## Android system Back navigation
 
 The app handles the Android system Back button and gesture inside Member, Admin, and Sovereign Desk workspaces. It returns to the prior in-app screen or Overview where appropriate and asks for confirmation before exiting from a dashboard root. Verify the latest Flutter checks and release APK build before installing this change.
+
+
+## Member presence, feedback and community images
+
+- Member sessions send a presence heartbeat and can opt out of showing online/last-seen status.
+- The Community feed supports optional JPG, PNG, or WebP image attachments (up to 5 MB).
+- Feedback & Suggestions supports feature requests, bug reports, improvements, optional images, and status history.
+- Authorized administrators can review member feedback and publish status updates.
+- Backend feature tables are created lazily by the API when the database account has table-creation privileges; production rollout should verify this on the deployed database.
