@@ -32,6 +32,7 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
   String? _apkUrl;
   String? _checksumUrl;
   String? _releaseNotes;
+  bool _mandatoryUpdate = false;
 
   @override
   void initState() {
@@ -75,6 +76,8 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
       if (match == null) throw Exception('The release has no version information yet. Please try again later.');
       final version = match.group(1)!;
+      final mandatoryMatch = RegExp(r'Mandatory:\\s*(true|yes|1)', caseSensitive: false).firstMatch(body);
+      final mandatory = mandatoryMatch != null;
       final assets = (release['assets'] as List? ?? const [])
           .whereType<Map>()
           .map((item) => Map<String, dynamic>.from(item))
@@ -93,9 +96,11 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
         _latestVersion = version;
         _apkUrl = apk!['browser_download_url']?.toString();
         _checksumUrl = checksum!['browser_download_url']?.toString();
-        _releaseNotes = body.replaceFirst(match.group(0)!, '').trim();
-        _status = _isNewer(version, '${info.version}+${info.buildNumber}')
-            ? 'Version $version is available.'
+        _mandatoryUpdate = mandatory;
+        _releaseNotes = body.replaceFirst(match.group(0)!, '').replaceFirst(RegExp(r'Mandatory:\\s*(true|yes|1)', caseSensitive: false), '').trim();
+        final newer = _isNewer(version, '${info.version}+${info.buildNumber}');
+        _status = newer
+            ? 'Version $version is available.${mandatory ? ' This release is marked mandatory; install it as soon as possible.' : ''}'
             : 'You are using the latest version (${info.version}+${info.buildNumber}).';
       });
     } catch (e) {
