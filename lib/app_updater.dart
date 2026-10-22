@@ -76,7 +76,7 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
       if (match == null) throw Exception('The release has no version information yet. Please try again later.');
       final version = match.group(1)!;
-      final mandatoryMatch = RegExp(r'Mandatory:\\s*(true|yes|1)', caseSensitive: false).firstMatch(body);
+      final mandatoryMatch = RegExp(r'Mandatory:\s*(true|yes|1)', caseSensitive: false).firstMatch(body);
       final mandatory = mandatoryMatch != null;
       final assets = (release['assets'] as List? ?? const [])
           .whereType<Map>()
@@ -97,7 +97,7 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
         _apkUrl = apk!['browser_download_url']?.toString();
         _checksumUrl = checksum!['browser_download_url']?.toString();
         _mandatoryUpdate = mandatory;
-        _releaseNotes = body.replaceFirst(match.group(0)!, '').replaceFirst(RegExp(r'Mandatory:\\s*(true|yes|1)', caseSensitive: false), '').trim();
+        _releaseNotes = body.replaceFirst(match.group(0)!, '').replaceFirst(RegExp(r'Mandatory:\s*(true|yes|1)', caseSensitive: false), '').trim();
         final newer = _isNewer(version, '${info.version}+${info.buildNumber}');
         _status = newer
             ? 'Version $version is available.${mandatory ? ' This release is marked mandatory; install it as soon as possible.' : ''}'
@@ -107,7 +107,13 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       if (mounted) {
         setState(() {
           _error = e is DioException
-              ? 'Could not reach the official update service. Check your internet and try again.'
+              ? (e.response?.statusCode == 404
+                  ? 'The official update release was not found. The publisher must create or restore the latest-apk release.'
+                  : e.response?.statusCode == 403 || e.response?.statusCode == 429
+                      ? 'The update service temporarily limited requests. Please wait a little and try again.'
+                      : e.response?.statusCode != null
+                          ? 'The update service returned HTTP ${e.response!.statusCode}. Please try again later.'
+                          : 'Could not connect to the official update service. Check your internet connection and try again.')
               : e.toString().replaceFirst('Exception: ', '');
           _status = 'Update check could not be completed.';
         });
