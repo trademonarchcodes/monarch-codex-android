@@ -79,7 +79,19 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
       if (decoded is! Map) throw Exception('The official update manifest is not valid.');
       final manifest = Map<String, dynamic>.from(decoded);
       final version = (manifest['version'] ?? '').toString().trim();
-      if (!RegExp(r'^[0-9]+\\.[0-9]+\\.[0-9]+\\+[0-9]+
+      if (!RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$').hasMatch(version)) {
+        throw Exception('The official update manifest does not contain a valid version.');
+      }
+      if (!mounted) return;
+      setState(() {
+        _latestVersion = version;
+        _apkUrl = _apkDownloadUrl;
+        _checksumUrl = _checksumDownloadUrl;
+        _releaseNotes = (manifest['releaseNotes'] ?? '').toString().trim();
+        _status = _isNewer(version, '${info.version}+${info.buildNumber}')
+            ? 'Version $version is available.'
+            : 'You are using the latest version (${info.version}+${info.buildNumber}).';
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
