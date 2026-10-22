@@ -31,13 +31,9 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Preserve project dependencies
-        run: cp pubspec.yaml /tmp/monarch-codex-pubspec.yaml
-
       - name: Generate Android scaffolding
         run: |
-          flutter create --overwrite --platforms=android --project-name monarch_codex --org online.monarchcodex .
-          cp /tmp/monarch-codex-pubspec.yaml pubspec.yaml
+          flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
 
       - name: Enable network access in release APK
         run: |
