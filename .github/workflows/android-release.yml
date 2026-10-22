@@ -36,7 +36,7 @@ jobs:
 
       - name: Enable network access in release APK
         run: |
-          sed -i '/<manifest /a\\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml
 
       - name: Install dependencies
