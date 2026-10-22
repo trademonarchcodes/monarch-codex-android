@@ -39,8 +39,20 @@ jobs:
           sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' android/app/src/main/AndroidManifest.xml
           grep -q 'android.permission.INTERNET' android/app/src/main/AndroidManifest.xml
 
+      - name: Prepare launcher icon artwork
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y librsvg2-bin
+          rsvg-convert -w 1024 -h 1024 assets/images/monarch-codex-app-icon.svg > assets/images/monarch-codex-app-icon.png
+
       - name: Install dependencies
         run: flutter pub get
+
+      - name: Generate Android launcher icon
+        run: dart run flutter_launcher_icons
+
+      - name: Set app display name
+        run: sed -i 's/android:label="monarch_codex"/android:label="Monarch Codex"/' android/app/src/main/AndroidManifest.xml
 
       - name: Build release APK
         run: flutter build apk --release
