@@ -129,11 +129,11 @@ workflows:
           owner_repo = "trademonarchcodes/monarch-codex-android"
           token = os.environ["MONARCH_ANDROID_RELEASE_TOKEN"]
           version_text = Path("pubspec.yaml").read_text()
-          match = re.search(r"^version:\s*([0-9]+\\.[0-9]+\\.[0-9]+\\+[0-9]+)\s*$", version_text, re.M)
+          match = re.search(r"^version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)\s*$", version_text, re.M)
           if not match:
               raise SystemExit("Could not read version from pubspec.yaml")
           version = match.group(1)
-          body = "Version: " + version + "\\nMandatory: false\\n\\nMonarch Codex Android release. Includes the latest mobile admin navigation and updater improvements."
+          body = "Version: " + version + "\nMandatory: false\n\nMonarch Codex Android release. Includes the latest mobile admin navigation and updater improvements."
           api = "https://api.github.com/repos/" + owner_repo
           headers = {
               "Authorization": "Bearer " + token,
