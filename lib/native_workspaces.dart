@@ -444,16 +444,30 @@ class _AdminShellState extends State<AdminShell>{
           Container(padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
             const Text('REVIEW & APPROVAL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11)),const SizedBox(height:7),
             const Text('Choose a review queue from the sidebar. The secure review portal may request a fresh sign-in.',style:TextStyle(color:muted,fontSize:12,height:1.5)),const SizedBox(height:12),
-            SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>_openAdminRoute('/admin/kyc'),icon:const Icon(Icons.verified_user_outlined),label:const Text('Open KYC review'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(46)))),
+            SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:()=>openSection(1),icon:const Icon(Icons.verified_user_outlined),label:const Text('Review KYC applications'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(46)))),
             const SizedBox(height:8),
-            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/deposits'),icon:const Icon(Icons.receipt_long),label:const Text('Open deposit review'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>openSection(2),icon:const Icon(Icons.receipt_long),label:const Text('Review deposits'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
             const SizedBox(height:8),
-            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>_openAdminRoute('/admin/withdrawals'),icon:const Icon(Icons.payments_outlined),label:const Text('Open withdrawal review'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
+            SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>openSection(3),icon:const Icon(Icons.payments_outlined),label:const Text('Review withdrawals'),style:OutlinedButton.styleFrom(minimumSize:const Size.fromHeight(44)))),
           ])),
           const SizedBox(height:12),FilledButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:dark))),icon:const Icon(Icons.manage_accounts_outlined),label:const Text('Manage member roles'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48))),
           const SizedBox(height:12),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of administrator account')),
         ]);
       }),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: const [0, 13, 1, 2, 14].contains(selected) ? const [0, 13, 1, 2, 14].indexOf(selected) : 0,
+        backgroundColor: dark ? const Color(0xFF101012) : Colors.white,
+        indicatorColor: gold.withValues(alpha: .18),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: (index) => openSection(const [0, 13, 1, 2, 14][index]),
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard, color: gold), label: 'Overview'),
+          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups, color: gold), label: 'Members'),
+          NavigationDestination(icon: Icon(Icons.verified_user_outlined), selectedIcon: Icon(Icons.verified_user, color: gold), label: 'KYC'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long, color: gold), label: 'Deposits'),
+          NavigationDestination(icon: Icon(Icons.notifications_none_rounded), selectedIcon: Icon(Icons.notifications, color: gold), label: 'Alerts'),
+        ],
+      ),
     ));
   }
   Widget _stat(String label,dynamic value,IconData icon,bool dark)=>Container(padding:const EdgeInsets.all(14),decoration:BoxDecoration(color:dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:dark?const Color(0xFF302E29):const Color(0xFFE4DFD2))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisAlignment:MainAxisAlignment.center,children:[Icon(icon,color:gold,size:20),const SizedBox(height:10),Text((value??'—').toString(),style:const TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(label,style:const TextStyle(color:muted,fontSize:9,fontWeight:FontWeight.w900))]));
