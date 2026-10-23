@@ -126,6 +126,14 @@ class MonarchApi {
   Future<Map<String,dynamic>> assignRole({required int memberId,required int roleId,required String action}) async => Map<String,dynamic>.from((await dio.post('admin/roles/assign',data:{'memberId':memberId,'roleId':roleId,'action':action})).data as Map);
   Future<Map<String,dynamic>> requestSovereignPartner({required String companyName,required String message}) async => Map<String,dynamic>.from((await dio.post('sovereign/roles/partner-request',data:{'companyName':companyName,'message':message})).data as Map);
 
+  Future<Map<String,dynamic>> sovereignDeskSection(String section) async =>
+      Map<String,dynamic>.from((await dio.get('sovereign/$section')).data as Map);
+  Future<Map<String,dynamic>> sovereignDeskCreate(String section,Map<String,dynamic> data) async =>
+      Map<String,dynamic>.from((await dio.post('sovereign/$section',data:data)).data as Map);
+  Future<Map<String,dynamic>> sovereignDeskUpdate(String path,Map<String,dynamic> data) async =>
+      Map<String,dynamic>.from((await dio.post('sovereign/$path',data:data)).data as Map);
+
+
   Future<Map<String, dynamic>> submitDeposit({required String currency, required String amount, required String methodId, required String reference, required String note, required PlatformFile proof}) async {
     final bytes = proof.bytes;
     if (bytes == null || bytes.isEmpty) throw Exception('The selected receipt could not be read. Please choose it again.');
