@@ -1339,11 +1339,13 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
       'guidance'=>{'title':'Lesson title','body':'Guidance content'},
       'announcements'=>{'title':'Announcement title','body':'Announcement message'},
       'watchlist'=>{'instrument':'Instrument','direction':'Direction: buy or sell','outcome':'Outcome: profit, loss or breakeven','trade_date':'Trade date YYYY-MM-DD','notes':'Trade notes'},
+      'events'=>{'title':'Event title','summary':'Event description','event_label':'Homepage label','starts_at':'Starts at YYYY-MM-DDTHH:mm','ends_at':'Ends at YYYY-MM-DDTHH:mm'},
+      'governance'=>{'subject':'Concern / review title','details':'Details and rationale'},
       _=><String,String>{},
     };
     if(defs.isEmpty)return;
     final ctrls=<String,TextEditingController>{};
-    for(final e in defs.entries){ctrls[e.key]=TextEditingController(text:e.key=='direction'?'buy':e.key=='outcome'?'breakeven':e.key=='trade_date'?DateTime.now().toIso8601String().substring(0,10):'');}
+    for(final e in defs.entries){ctrls[e.key]=TextEditingController(text:e.key=='direction'?'buy':e.key=='outcome'?'breakeven':e.key=='trade_date'?DateTime.now().toIso8601String().substring(0,10):e.key=='starts_at'?DateTime.now().toIso8601String().substring(0,16):e.key=='ends_at'?DateTime.now().add(const Duration(days:30)).toIso8601String().substring(0,16):e.key=='event_label'?'MONARCH CODEX EVENT':'');}
     final key=GlobalKey<FormState>();
     final save=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
       title:Text('Create ${widget.title.toLowerCase()}'),
@@ -1376,6 +1378,8 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
     final id=(x['id']??'').toString();
     if(widget.section=='signals')return [if(x['validation_status']!='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'valid'}),child:const Text('Validate')),if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='invalid')OutlinedButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'invalid'}),child:const Text('Mark invalid'))];
     if(widget.section=='guidance')return [OutlinedButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
+    if(widget.section=='events')return [OutlinedButton(onPressed:busy?null:()=>update('events/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('events/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
+    if(widget.section=='governance')return [OutlinedButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'under_review','resolution_note':'Moved to review in Android app'}),child:const Text('Review')),FilledButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'resolved','resolution_note':'Resolved in Android app'}),child:const Text('Resolve'))];
     if(widget.section=='announcements')return [OutlinedButton(onPressed:busy?null:()=>update('announcements/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('announcements/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish & notify'))];
     if(widget.section=='signal-access'&&x['status']=='pending')return [OutlinedButton(onPressed:busy?null:()=>update('signal-access/$id/review',{'decision':'rejected','note':'Reviewed in Android app'}),child:const Text('Reject')),FilledButton(onPressed:busy?null:()=>update('signal-access/$id/review',{'decision':'approved','note':'Payment verified in Android app'}),child:const Text('Approve'))];
     return const [];
@@ -1408,9 +1412,9 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
         if(widget.section!='chat'&&widget.section!='access')...items.map((x)=>record(x,actions:actions(x))),
         if(widget.section=='governance')...list(d['decisions']).map((x)=>record(x,subtitle:'Governance decision')),
         if(widget.section=='governance'&&items.isEmpty&&list(d['decisions']).isEmpty)const Card(child:Padding(padding:EdgeInsets.all(18),child:Text('No governance records yet.'))),
-        if(widget.section=='events')const Padding(padding:EdgeInsets.all(10),child:Text('Events are view-only in the native app right now.',style:TextStyle(color:muted))),
+        
       ];
-      final canCreate=['signals','guidance','announcements','watchlist'].contains(widget.section);
+      final canCreate=['signals','guidance','announcements','watchlist','events','governance'].contains(widget.section);
       return Stack(children:[ListView(padding:const EdgeInsets.fromLTRB(14,14,14,90),children:children),if(canCreate)Positioned(right:18,bottom:18,child:FloatingActionButton.extended(onPressed:busy?null:create,backgroundColor:gold,foregroundColor:ink,icon:const Icon(Icons.add),label:Text('Create ${widget.title.toLowerCase()}'))),if(busy)const Positioned(top:0,left:0,right:0,child:LinearProgressIndicator(color:gold,minHeight:3))]);
     }),
   );
