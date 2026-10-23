@@ -841,6 +841,8 @@ class _ShellState extends State<Shell> {
       tile('Deposits & withdrawals', 'Find payment instructions or check your request status.', Icons.account_balance_wallet_outlined, dark, () => page(null, 1)),
       tile('Investments & market', 'Open your investment plans, portfolio, and market information.', Icons.trending_up, dark, () => page(null, 2)),
       tile('Referrals & Monarch UID', 'Get help sharing your referral details and connecting with members.', Icons.share_outlined, dark, () => page('Referrals')),
+      tile('Online Cooperative connection', 'Get help with connecting your account or understanding a pending Cooperative verification. Cooperative participation is separate from Monarch Codex services.', Icons.handshake_outlined, dark, () => page('Online Cooperative')),
+      tile('Sovereign Desk signals & access', 'Ask about signal access, membership eligibility, or trading guidance. Signals and market activity carry risk and do not guarantee profits.', Icons.insights_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Sovereign%20Desk%20Support'))),
       tile('Community & social links', 'Open the member community or official Monarch Codex channels.', Icons.groups_outlined, dark, () => page(null, 4)),
       tile('Report a problem / send feedback', 'Submit a bug report, suggestion, or improvement and track its status.', Icons.feedback_outlined, dark, () => page('Feedback & Suggestions')),
       tile('Visit the website', 'Open Monarch Codex online for additional account pages.', Icons.open_in_new, dark, () => openSite('/')),
