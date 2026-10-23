@@ -57,6 +57,10 @@ class MonarchApi {
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<void> logout() async { await dio.post('auth/logout'); }
+  Future<Map<String, dynamic>> walletBalances() async => Map<String, dynamic>.from((await dio.get('wallet/balances')).data as Map);
+  Future<Map<String, dynamic>> walletRecipient(String uid) async => Map<String, dynamic>.from((await dio.get('wallet/recipient/${Uri.encodeComponent(uid)}')).data as Map);
+  Future<Map<String, dynamic>> transferWallet({required String recipientUid,required String currency,required String amount,required String idempotencyKey}) async =>
+      Map<String, dynamic>.from((await dio.post('wallet/transfer',data:{'recipientUid':recipientUid,'currency':currency,'amount':amount,'idempotencyKey':idempotencyKey})).data as Map);
   Future<Map<String, dynamic>> transactions() async => Map<String, dynamic>.from((await dio.get('transactions')).data as Map);
   Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
   Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
@@ -156,6 +160,138 @@ ThemeData makeTheme(bool dark) => ThemeData(
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: gold, width: 1.5)),
   ),
 );
+
+class WalletTransferPage extends StatefulWidget {
+  const WalletTransferPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<WalletTransferPage> createState() => _WalletTransferPageState();
+}
+
+class _WalletTransferPageState extends State<WalletTransferPage> {
+  final uidController = TextEditingController();
+  final amountController = TextEditingController();
+  Map<String,dynamic>? recipient;
+  Map<String,dynamic>? balances;
+  String currency = 'NGN';
+  String? error, success, pendingKey;
+  bool busy = false, looking = false;
+
+  @override void initState() { super.initState(); refreshBalances(); }
+  @override void dispose() { uidController.dispose(); amountController.dispose(); super.dispose(); }
+
+  String newKey() {
+    final random = math.Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2,'0')).join();
+    return '${hex.substring(0,8)}-${hex.substring(8,12)}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}';
+  }
+
+  String messageFrom(Object e) {
+    if (e is DioException && e.response?.data is Map) {
+      final value = (e.response!.data as Map)['message'];
+      if (value != null) return value.toString();
+    }
+    return e.toString().replaceFirst('Exception: ', '');
+  }
+
+  Future<void> refreshBalances() async {
+    try {
+      final value = await widget.api.walletBalances();
+      if (mounted) setState(() => balances = value);
+    } catch (_) { if (mounted) setState(() => balances = null); }
+  }
+
+  Future<void> lookupRecipient() async {
+    final uid = uidController.text.trim().toUpperCase();
+    uidController.value = uidController.value.copyWith(text: uid, selection: TextSelection.collapsed(offset: uid.length));
+    if (!RegExp(r'^MONARCH\d{6}$').hasMatch(uid)) {
+      setState(() { recipient = null; error = 'Enter a valid UID, for example MONARCH123456.'; success = null; });
+      return;
+    }
+    setState(() { looking = true; error = null; success = null; recipient = null; });
+    try {
+      final value = await widget.api.walletRecipient(uid);
+      if (mounted) setState(() { recipient = value; looking = false; });
+    } catch (e) {
+      if (mounted) setState(() { looking = false; error = messageFrom(e); recipient = null; });
+    }
+  }
+
+  Future<void> sendTransfer() async {
+    if (busy) return;
+    final uid = uidController.text.trim().toUpperCase();
+    if (recipient == null || (recipient!['uid'] ?? '').toString().toUpperCase() != uid) {
+      await lookupRecipient();
+      if (!mounted || recipient == null) return;
+    }
+    final amount = amountController.text.trim();
+    final value = double.tryParse(amount);
+    if (!RegExp(r'^(?:0|[1-9]\d{0,11})(?:\.\d{1,8})?$').hasMatch(amount) || value == null || !value.isFinite || value <= 0) {
+      setState(() { error = 'Enter a valid amount greater than zero.'; success = null; });
+      return;
+    }
+    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
+      title: const Text('Confirm wallet transfer'),
+      content: Text('Send $currency ${value.toStringAsFixed(2)} to ${recipient!['name']} (${recipient!['uid']})? Transfers may not be reversible after completion.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm transfer')),
+      ],
+    ));
+    if (confirmed != true || !mounted) return;
+    setState(() { busy = true; error = null; success = null; pendingKey ??= newKey(); });
+    try {
+      final result = await widget.api.transferWallet(recipientUid: uid, currency: currency, amount: amount, idempotencyKey: pendingKey!);
+      if (!mounted) return;
+      setState(() { success = '${result['message'] ?? 'Transfer completed.'} Reference: ${result['reference'] ?? ''}'; pendingKey = null; amountController.clear(); });
+      await refreshBalances();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { error = messageFrom(e); });
+    } finally { if (mounted) setState(() => busy = false); }
+  }
+
+  @override Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final textColor = dark ? Colors.white : const Color(0xFF191919);
+    final cardColor = dark ? panel : Colors.white;
+    final borderColor = dark ? const Color(0xFF3C3423) : const Color(0xFFE8D9A9);
+    final ngn = double.tryParse((balances?['ngn'] ?? '0').toString()) ?? 0;
+    final usd = double.tryParse((balances?['usd'] ?? '0').toString()) ?? 0;
+    InputDecoration decoration(String label, String hint) => InputDecoration(labelText: label, hintText: hint, filled: true, fillColor: dark ? const Color(0xFF101012) : const Color(0xFFFAF8F1), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: gold, width: 1.5)));
+    return ListView(padding: const EdgeInsets.all(15), children: [
+      const Text('Send funds to another Monarch', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 6),
+      const Text('Transfer wallet funds using a member’s Monarch UID. The recipient and amount are verified before the transfer is submitted.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+      const SizedBox(height: 16),
+      Row(children: [
+        Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('NGN available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text('₦${ngn.toStringAsFixed(2)}', style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
+        const SizedBox(width: 9),
+        Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('USD available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text('$${usd.toStringAsFixed(2)}', style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
+      ]),
+      Card(color: cardColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: borderColor)), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        TextField(controller: uidController, textCapitalization: TextCapitalization.characters, textInputAction: TextInputAction.done, onSubmitted: (_) => lookupRecipient(), decoration: decoration('Recipient Monarch UID', 'MONARCH123456')),
+        const SizedBox(height: 8),
+        if (looking) const LinearProgressIndicator(color: gold, minHeight: 2),
+        if (recipient != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [const Icon(Icons.verified_user_outlined, color: Colors.green), const SizedBox(width: 8), Expanded(child: Text('${recipient!['name']} · ${recipient!['uid']}', style: TextStyle(color: textColor, fontWeight: FontWeight.w800)))])),
+        OutlinedButton.icon(onPressed: looking ? null : lookupRecipient, icon: const Icon(Icons.person_search_outlined), label: const Text('Verify recipient')),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(value: currency, decoration: decoration('Wallet currency', 'Choose currency'), items: const [DropdownMenuItem(value: 'NGN', child: Text('Nigerian naira (NGN)')), DropdownMenuItem(value: 'USD', child: Text('US dollars (USD)'))], onChanged: busy ? null : (v) => setState(() => currency = v ?? 'NGN')),
+        const SizedBox(height: 12),
+        TextField(controller: amountController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: decoration('Amount to send', '0.00')),
+        const SizedBox(height: 14),
+        if (error != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(error!, style: const TextStyle(color: Color(0xFFFF8F80), fontSize: 12))),
+        if (success != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(success!, style: const TextStyle(color: Color(0xFF38B878), fontSize: 12))),
+        FilledButton.icon(onPressed: busy ? null : sendTransfer, icon: busy ? const SizedBox(width: 17,height: 17,child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.swap_horiz_rounded), label: Text(busy ? 'Processing securely…' : 'Confirm and send'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, padding: const EdgeInsets.symmetric(vertical: 14))),
+        const SizedBox(height: 8),
+        Text('Transfers must use the same currency on both wallets. Check the UID carefully and never share your password or one-time code.', style: TextStyle(color: muted, fontSize: 11, height: 1.45)),
+      ]))),
+    ]);
+  }
+}
 
 class MonarchApp extends StatefulWidget {
   const MonarchApp({super.key, required this.api});
@@ -836,6 +972,7 @@ class _ShellState extends State<Shell> {
       tile('Deposit', 'Choose a payment destination and submit your receipt.', Icons.add_card, dark, () => page('Deposit')),
       tile('Withdraw', 'Request a payout to a saved account after KYC approval.', Icons.south_west, dark, () => page('Withdraw')),
       tile('Transactions', 'View recorded activity and request statuses.', Icons.receipt_long, dark, () => page('Transactions')),
+      tile('Wallet Transfer', 'Send funds securely to another member using their Monarch UID.', Icons.swap_horiz_rounded, dark, () => page('Wallet Transfer')),
     ]);
   }
 
@@ -845,6 +982,7 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
+    if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark);
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
