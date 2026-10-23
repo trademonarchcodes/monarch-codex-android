@@ -678,15 +678,21 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
   Future<void> openDeskSection(String route, {int? destination}) async {
     if (destination != null && mounted) setState(() => selectedDestination = destination);
     _scaffoldKey.currentState?.closeDrawer();
-    try {
-      await _openAdminRoute(route);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open this workspace: ' + e.toString())),
-        );
-      }
-    }
+    const sections = <String,String>{
+      '/sovereign-admin':'overview','/sovereign-admin/signals':'signals',
+      '/sovereign-admin/guidance':'guidance','/sovereign-admin/mentorship':'guidance',
+      '/sovereign-admin/access':'access','/sovereign-admin/signal-access':'signal-access',
+      '/sovereign-admin/chat':'chat','/sovereign-admin/announcements':'announcements',
+      '/sovereign-admin/events':'events','/sovereign-admin/watchlist':'watchlist',
+      '/sovereign-admin/governance':'governance','/sovereign-admin/activity':'activity',
+      '/market-movers.html':'markets',
+    };
+    final section=sections[route]??'overview';
+    final title=deskDestinations.firstWhere((x)=>x['route']==route,orElse:()=>{'title':'Sovereign Desk'})['title'] as String;
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+      builder:(_)=>SovereignDeskSectionPage(api:widget.api,section:section,title:title),
+    ));
+    if(mounted)setState(()=>selectedDestination=0);
   }
 
   void showMoreDestinations() {
@@ -1306,3 +1312,112 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
     ]);
   });
 }
+
+
+
+class SovereignDeskSectionPage extends StatefulWidget {
+  const SovereignDeskSectionPage({super.key,required this.api,required this.section,required this.title});
+  final MonarchApi api; final String section; final String title;
+  @override State<SovereignDeskSectionPage> createState()=>_SovereignDeskSectionPageState();
+}
+class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
+  late Future<Map<String,dynamic>> future; bool busy=false; String? message;
+  @override void initState(){super.initState();future=_load();}
+  Future<Map<String,dynamic>> _load()=>widget.section=='markets'?Future.value({'items':<dynamic>[]}):widget.api.sovereignDeskSection(widget.section);
+  void reload()=>setState(()=>future=_load());
+  String errorText(Object e){if(e is DioException&&e.response?.data is Map){final d=e.response!.data as Map;return (d['message']??d['error']??'Request failed').toString();}return 'Could not complete the request. Check your connection and administrator permissions.';}
+  List<Map<String,dynamic>> list(dynamic v)=>v is List?v.whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList():<Map<String,dynamic>>[];
+  Future<void> update(String path,Map<String,dynamic> body)async{
+    setState(()=>busy=true);
+    try{await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message='Saved to the shared database.';future=_load();});}
+    catch(e){if(mounted)setState(()=>message=errorText(e));}
+    finally{if(mounted)setState(()=>busy=false);}
+  }
+  Future<void> create()async{
+    final defs=switch(widget.section){
+      'signals'=>{'asset_pair':'Instrument (e.g. XAUUSD)','direction':'Direction: buy or sell','price':'Entry price','stop_loss':'Stop loss (optional)','take_profit_1':'Take profit (optional)','explanation':'Analysis / notes'},
+      'guidance'=>{'title':'Lesson title','body':'Guidance content'},
+      'announcements'=>{'title':'Announcement title','body':'Announcement message'},
+      'watchlist'=>{'instrument':'Instrument','direction':'Direction: buy or sell','outcome':'Outcome: profit, loss or breakeven','trade_date':'Trade date YYYY-MM-DD','notes':'Trade notes'},
+      _=><String,String>{},
+    };
+    if(defs.isEmpty)return;
+    final ctrls=<String,TextEditingController>{};
+    for(final e in defs.entries){ctrls[e.key]=TextEditingController(text:e.key=='direction'?'buy':e.key=='outcome'?'breakeven':e.key=='trade_date'?DateTime.now().toIso8601String().substring(0,10):'');}
+    final key=GlobalKey<FormState>();
+    final save=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+      title:Text('Create ${widget.title.toLowerCase()}'),
+      content:SizedBox(width:460,child:SingleChildScrollView(child:Form(key:key,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        for(final e in defs.entries) Padding(padding:const EdgeInsets.only(bottom:10),child:TextFormField(controller:ctrls[e.key],maxLines:['body','explanation','notes'].contains(e.key)?4:1,decoration:InputDecoration(labelText:e.value,border:const OutlineInputBorder()),validator:(v)=>['stop_loss','take_profit_1','explanation','notes'].contains(e.key)||(v??'').trim().isNotEmpty?null:'Required')),
+      ])))),
+      actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:(){if(key.currentState?.validate()??false)Navigator.pop(c,true);},child:const Text('Save'))],
+    ));
+    if(save!=true||!mounted){for(final c in ctrls.values){c.dispose();}return;}
+    setState(()=>busy=true);
+    try{final body=<String,dynamic>{for(final e in ctrls.entries)e.key:e.value.text.trim()};if(widget.section=='signals')body['validation_status']='pending';await widget.api.sovereignDeskCreate(widget.section,body);if(mounted)setState(()=>message='Saved to the shared database.');reload();}
+    catch(e){if(mounted)setState(()=>message=errorText(e));}
+    finally{for(final c in ctrls.values){c.dispose();}if(mounted)setState(()=>busy=false);}
+  }
+  Widget record(Map<String,dynamic> item,{List<Widget> actions=const [],String? subtitle,VoidCallback? onTap}){
+    final title=(item['title']??item['subject']??item['asset_pair']??item['instrument']??item['full_name']??item['name']??item['monarch_uid']??item['member_id']??'Record').toString();
+    final status=(item['status']??item['outcome']??item['direction']??item['kind']??'').toString().replaceAll('_',' ');
+    final desc=(item['body']??item['explanation']??item['details']??item['summary']??item['reason']??item['notes']??item['preview']??'').toString();
+    final meta=[if(status.isNotEmpty)status.toUpperCase(),if(item['email']!=null)item['email'].toString(),if(item['monarch_uid']!=null)item['monarch_uid'].toString(),if(item['created_at']!=null)item['created_at'].toString()].join(' · ');
+    return Card(child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(16),child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Row(children:[Expanded(child:Text(title,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:14))),if(status.isNotEmpty)Text(status.toUpperCase(),style:const TextStyle(color:gold,fontSize:9,fontWeight:FontWeight.w900))]),
+      if(meta.isNotEmpty)Padding(padding:const EdgeInsets.only(top:5),child:Text(meta,style:const TextStyle(color:muted,fontSize:10))),
+      if(desc.isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(desc,maxLines:5,overflow:TextOverflow.ellipsis,style:const TextStyle(height:1.4))),
+      if(item['price']!=null||item['entry_zone']!=null)Padding(padding:const EdgeInsets.only(top:7),child:Text('Entry: ${item['price']??item['entry_zone']} · TP: ${item['take_profit_1']??'—'} · SL: ${item['stop_loss']??'—'}',style:const TextStyle(color:gold,fontSize:11,fontWeight:FontWeight.w700))),
+      if(subtitle!=null)Padding(padding:const EdgeInsets.only(top:6),child:Text(subtitle,style:const TextStyle(color:muted,fontSize:11))),
+      if(actions.isNotEmpty)Padding(padding:const EdgeInsets.only(top:10),child:Wrap(spacing:8,runSpacing:6,children:actions)),
+    ]))));
+  }
+  List<Widget> actions(Map<String,dynamic> x){
+    final id=(x['id']??'').toString();
+    if(widget.section=='signals')return [if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='valid')const Text('Validate this signal in the authorised review workflow before publishing.',style:TextStyle(color:muted,fontSize:10))];
+    if(widget.section=='guidance')return [OutlinedButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
+    if(widget.section=='announcements')return [OutlinedButton(onPressed:busy?null:()=>update('announcements/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('announcements/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish & notify'))];
+    if(widget.section=='signal-access'&&x['status']=='pending')return [OutlinedButton(onPressed:busy?null:()=>update('signal-access/$id/review',{'decision':'rejected','note':'Reviewed in Android app'}),child:const Text('Reject')),FilledButton(onPressed:busy?null:()=>update('signal-access/$id/review',{'decision':'approved','note':'Payment verified in Android app'}),child:const Text('Approve'))];
+    return const [];
+  }
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(leading:IconButton(onPressed:()=>Navigator.of(context).pop(),icon:const Icon(Icons.arrow_back)),title:Text(widget.title,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:15)),actions:[IconButton(onPressed:busy?null:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+      if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+      if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(24),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.cloud_off,color:gold,size:42),const SizedBox(height:12),const Text('Could not load this section',style:TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:8),Text(errorText(s.error!),textAlign:TextAlign.center,style:const TextStyle(color:muted)),FilledButton(onPressed:reload,child:const Text('Try again'))])));
+      final d=s.data??<String,dynamic>{};
+      if(widget.section=='markets')return const Center(child:Padding(padding:EdgeInsets.all(24),child:Text('This native screen is ready, but a live market quote provider still needs to be connected to the server.',textAlign:TextAlign.center,style:TextStyle(color:muted))));
+      if(widget.section=='overview')return ListView(padding:const EdgeInsets.all(16),children:[
+        Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('SOVEREIGN DESK',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1.3)),SizedBox(height:10),Text('Native command centre',style:TextStyle(color:Colors.white,fontSize:24,fontWeight:FontWeight.w900)),SizedBox(height:7),Text('Authenticated, native workspace using the shared Monarch Codex database.',style:TextStyle(color:Colors.white70,height:1.4))])),
+        const SizedBox(height:12),GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:1.7,crossAxisSpacing:8,mainAxisSpacing:8,children:[
+          _metric('Published signals',(d['signals'] is Map?(d['signals'] as Map)['published']:0),Icons.show_chart),
+          _metric('Published guidance',(d['guidance'] is Map?(d['guidance'] as Map)['published']:0),Icons.school_outlined),
+          _metric('Active access',(d['access'] is Map?(d['access'] as Map)['active']:0),Icons.verified_user_outlined),
+          _metric('Pending requests',(d['requests'] is Map?(d['requests'] as Map)['pending']:0),Icons.pending_actions),
+        ]),
+      ]);
+      final items=widget.section=='access'?list(d['requests']):list(d['items']);
+      final children=<Widget>[if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
+        if(widget.section=='access')const Text('ACCESS REQUESTS',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        if(widget.section=='access'&&items.isEmpty)const Card(child:Padding(padding:EdgeInsets.all(16),child:Text('No access requests waiting for review.'))),
+        if(widget.section=='access')...items.map((x)=>record(x,actions:x['status']=='pending'?[OutlinedButton(onPressed:busy?null:()=>update('access-requests/${x['id']}/review',{'decision':'rejected','reason':'Reviewed in Android app'}),child:const Text('Reject')),FilledButton(onPressed:busy?null:()=>update('access-requests/${x['id']}/review',{'decision':'approved','reason':'Approved in Android app'}),child:const Text('Approve'))]:const [])),
+        if(widget.section=='access')const Padding(padding:EdgeInsets.only(top:16,bottom:6),child:Text('MEMBER ACCESS RECORDS',style:TextStyle(color:gold,fontWeight:FontWeight.w900))),
+        if(widget.section=='access')...list(d['members']).take(100).map((x)=>record(x)),
+        if(widget.section!='access'&&items.isEmpty&&widget.section!='governance')const Card(child:Padding(padding:EdgeInsets.all(18),child:Text('Nothing has been added here yet.'))),
+        if(widget.section=='chat')...items.map((x)=>record(x,subtitle:'${x['unread']??0} unread',actions:[OutlinedButton(onPressed:busy?null:()=>_reply((x['member_id'] as num).toInt(),(x['full_name']??x['username']??'Member').toString()),child:const Text('Reply'))])),
+        if(widget.section!='chat'&&widget.section!='access')...items.map((x)=>record(x,actions:actions(x))),
+        if(widget.section=='governance')...list(d['decisions']).map((x)=>record(x,subtitle:'Governance decision')),
+        if(widget.section=='governance'&&items.isEmpty&&list(d['decisions']).isEmpty)const Card(child:Padding(padding:EdgeInsets.all(18),child:Text('No governance records yet.'))),
+        if(widget.section=='events')const Padding(padding:EdgeInsets.all(10),child:Text('Events are view-only in the native app right now.',style:TextStyle(color:muted))),
+      ];
+      final canCreate=['signals','guidance','announcements','watchlist'].contains(widget.section);
+      return Stack(children:[ListView(padding:const EdgeInsets.fromLTRB(14,14,14,90),children:children),if(canCreate)Positioned(right:18,bottom:18,child:FloatingActionButton.extended(onPressed:busy?null:create,backgroundColor:gold,foregroundColor:ink,icon:const Icon(Icons.add),label:Text('Create ${widget.title.toLowerCase()}'))),if(busy)const Positioned(top:0,left:0,right:0,child:LinearProgressIndicator(color:gold,minHeight:3))]);
+    }),
+  );
+  Widget _metric(String title,dynamic value,IconData icon)=>Card(child:Padding(padding:const EdgeInsets.all(13),child:Row(children:[Icon(icon,color:gold),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(color:muted,fontSize:10)),Text((value??0).toString(),style:const TextStyle(color:gold,fontSize:21,fontWeight:FontWeight.w900))]))])));
+  Future<void> _reply(int memberId,String name)async{
+    final ctrl=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text('Reply to $name'),content:TextField(controller:ctrl,maxLines:4,maxLength:4000,decoration:const InputDecoration(hintText:'Write a reply',border:OutlineInputBorder())),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Send'))]));
+    if(ok==true&&ctrl.text.trim().isNotEmpty)await update('chat/$memberId',{'body':ctrl.text.trim()});ctrl.dispose();
+  }
+}
+
