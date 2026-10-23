@@ -323,6 +323,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==12)page=AdminFeedbackPage(api:widget.api,dark:dark);
     if(index==14)page=NotificationsPage(api:widget.api,dark:dark);
      if(index==15)page=AdminHelpSupportPage(dark:dark);
+    if(index==16)page=CommunityPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -404,6 +405,7 @@ class _AdminShellState extends State<AdminShell>{
             if(['super_admin','main_admin'].contains((widget.member['adminRole']??'').toString())) _navItem(12,Icons.feedback_outlined,'Member feedback'),
             _navItem(14,Icons.notifications_none_rounded,'Notifications'),
              _navItem(15,Icons.support_agent,'Help & Support'),
+             _navItem(16,Icons.forum_outlined,'Community'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
