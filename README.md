@@ -44,3 +44,15 @@ The Android app uses the shared API at `https://monarchcodex.online/api/mobile`.
 ## Android system Back navigation
 
 The app handles the Android system Back button and gesture inside Member, Admin, and Sovereign Desk workspaces. It returns to the prior in-app screen or Overview where appropriate and asks for confirmation before exiting from a dashboard root. Verify the latest Flutter checks and release APK build before installing this change.
+
+## In-app updates and navigation badges
+
+The app checks https://monarchcodex.online/api/mobile/app-update/latest on dashboard launch and periodically while the app is open. A newer release shows an update alert and badge. Downloaded APKs are verified against the published SHA-256 checksum before Android's installer opens. Android still requires the member to confirm installation; apps cannot silently replace themselves through a normal APK installer.
+
+The update proxy is implemented in the companion website PR. Hostinger must have MONARCH_ANDROID_RELEASE_TOKEN configured with a GitHub fine-grained token scoped to the private Android repository with repository metadata read and Contents read-only. Keep that token on the server; never put it in Flutter code.
+
+**Stable APK signing is also required for in-place upgrades.** Configure GitHub Actions secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD using a persistent release keystore. The workflow only publishes the latest-apk release when all four are present, so it does not advertise a debug-signed APK as an installable update. If an already-installed APK was signed with a different key, Android will require a one-time uninstall/reinstall of the consistently signed release; back up anything important before uninstalling. Once the stable signing key is in use, subsequent app updates can be initiated from inside the app.
+
+The member bottom navigation and sidebar show unread badges for relevant notification categories. New community-post counts are tracked on the device/browser since the last time the Community section was opened; these local community counts are not yet synchronized between different devices.
+
+To create a persistent Android release keystore, use Android's keytool to generate it, keep a secure backup, base64-encode the keystore file, and add the four values as repository Actions secrets. Never commit the keystore or its passwords to the repository.
