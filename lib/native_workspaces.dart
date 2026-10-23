@@ -1408,7 +1408,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
         if(widget.section=='access')const Padding(padding:EdgeInsets.only(top:16,bottom:6),child:Text('MEMBER ACCESS RECORDS',style:TextStyle(color:gold,fontWeight:FontWeight.w900))),
         if(widget.section=='access')...list(d['members']).take(100).map((x)=>record(x,actions:[FilledButton(onPressed:busy?null:()=>update('access/${x['id']}',{'decision':x['status']=='approved'?'revoked':'approved','reason':'Updated in Android app'}),child:Text(x['status']=='approved'?'Revoke access':'Grant access'))])),
         if(widget.section!='access'&&items.isEmpty&&widget.section!='governance')const Card(child:Padding(padding:EdgeInsets.all(18),child:Text('Nothing has been added here yet.'))),
-        if(widget.section=='chat')...items.map((x)=>record(x,subtitle:'${x['unread']??0} unread',actions:[OutlinedButton(onPressed:busy?null:()=>_reply((x['member_id'] as num).toInt(),(x['full_name']??x['username']??'Member').toString()),child:const Text('Reply'))])),
+        if(widget.section=='chat')...items.map((x)=>record(x,subtitle:'${x['unread']??0} unread',onTap:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignDeskChatPage(api:widget.api,memberId:(x['member_id'] as num).toInt(),memberName:(x['full_name']??x['username']??'Member').toString()))))),
         if(widget.section!='chat'&&widget.section!='access')...items.map((x)=>record(x,actions:actions(x))),
         if(widget.section=='governance')...list(d['decisions']).map((x)=>record(x,subtitle:'Governance decision')),
         if(widget.section=='governance'&&items.isEmpty&&list(d['decisions']).isEmpty)const Card(child:Padding(padding:EdgeInsets.all(18),child:Text('No governance records yet.'))),
@@ -1419,9 +1419,45 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
     }),
   );
   Widget _metric(String title,dynamic value,IconData icon)=>Card(child:Padding(padding:const EdgeInsets.all(13),child:Row(children:[Icon(icon,color:gold),const SizedBox(width:10),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(color:muted,fontSize:10)),Text((value??0).toString(),style:const TextStyle(color:gold,fontSize:21,fontWeight:FontWeight.w900))]))])));
-  Future<void> _reply(int memberId,String name)async{
-    final ctrl=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text('Reply to $name'),content:TextField(controller:ctrl,maxLines:4,maxLength:4000,decoration:const InputDecoration(hintText:'Write a reply',border:OutlineInputBorder())),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Send'))]));
-    if(ok==true&&ctrl.text.trim().isNotEmpty)await update('chat/$memberId',{'body':ctrl.text.trim()});ctrl.dispose();
+}
+class SovereignDeskChatPage extends StatefulWidget {
+  const SovereignDeskChatPage({super.key,required this.api,required this.memberId,required this.memberName});
+  final MonarchApi api; final int memberId; final String memberName;
+  @override State<SovereignDeskChatPage> createState()=>_SovereignDeskChatPageState();
+}
+class _SovereignDeskChatPageState extends State<SovereignDeskChatPage>{
+  late Future<Map<String,dynamic>> future;
+  final reply=TextEditingController(); bool busy=false; String? message;
+  @override void initState(){super.initState();future=widget.api.sovereignDeskSection('chat/${widget.memberId}');}
+  @override void dispose(){reply.dispose();super.dispose();}
+  void reload()=>setState(()=>future=widget.api.sovereignDeskSection('chat/${widget.memberId}'));
+  Future<void> send()async{
+    final body=reply.text.trim();if(body.isEmpty)return;setState(()=>busy=true);
+    try{await widget.api.sovereignDeskUpdate('chat/${widget.memberId}',{'body':body});reply.clear();if(mounted){setState(()=>message='Reply sent.');reload();}}
+    catch(e){if(mounted)setState(()=>message=e is DioException&&e.response?.data is Map?((e.response!.data as Map)['message']??'Could not send reply').toString():'Could not send reply.');}
+    finally{if(mounted)setState(()=>busy=false);}
   }
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:Text(widget.memberName,style:const TextStyle(fontSize:14,fontWeight:FontWeight.w900)),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+      if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+      if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(20),child:Text('Could not load conversation: ${s.error}')));
+      final data=s.data??<String,dynamic>{};final messages=data['messages'] is List?(data['messages'] as List).whereType<Map>().toList():<Map>[];
+      return Column(children:[
+        Expanded(child:ListView(padding:const EdgeInsets.all(12),children:[
+          for(final item in messages)Align(alignment:item['sender_role']=='desk'?Alignment.centerRight:Alignment.centerLeft,child:Container(
+            margin:const EdgeInsets.symmetric(vertical:5),padding:const EdgeInsets.all(12),constraints:const BoxConstraints(maxWidth:320),
+            decoration:BoxDecoration(color:item['sender_role']=='desk'?gold.withValues(alpha:.15):Theme.of(context).cardColor,borderRadius:BorderRadius.circular(14),border:Border.all(color:item['sender_role']=='desk'?gold.withValues(alpha:.5):muted.withValues(alpha:.2))),
+            child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text((item['body']??'').toString()),const SizedBox(height:5),Text((item['created_at']??'').toString(),style:const TextStyle(color:muted,fontSize:9))]),
+          )),
+        ])),
+        if(message!=null)Padding(padding:const EdgeInsets.all(5),child:Text(message!,style:const TextStyle(color:gold,fontSize:11))),
+        SafeArea(top:false,child:Padding(padding:const EdgeInsets.fromLTRB(10,6,10,10),child:Row(children:[
+          Expanded(child:TextField(controller:reply,minLines:1,maxLines:4,decoration:const InputDecoration(hintText:'Reply to member…',border:OutlineInputBorder()))),
+          const SizedBox(width:8),IconButton.filled(onPressed:busy?null:send,style:IconButton.styleFrom(backgroundColor:gold,foregroundColor:ink),icon:const Icon(Icons.send_rounded)),
+        ]))),
+      ]);
+    }),
+  );
 }
 
