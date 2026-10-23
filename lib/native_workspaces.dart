@@ -328,6 +328,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
     if(index==12)page=AdminFeedbackPage(api:widget.api,dark:dark);
     if(index==14)page=NotificationsPage(api:widget.api,dark:dark);
+     if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -408,6 +409,7 @@ class _AdminShellState extends State<AdminShell>{
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
             if(['super_admin','main_admin'].contains((widget.member['adminRole']??'').toString())) _navItem(12,Icons.feedback_outlined,'Member feedback'),
             _navItem(14,Icons.notifications_none_rounded,'Notifications'),
+             _navItem(15,Icons.support_agent,'Help & Support'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -618,6 +620,24 @@ class AdminAppSettingsPage extends StatelessWidget {
       ),
     ]),
   );
+}
+
+class AdminHelpSupportPage extends StatelessWidget {
+  const AdminHelpSupportPage({super.key,required this.dark});
+  final bool dark;
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('ADMIN HELP & SUPPORT')),
+    body:ListView(padding:const EdgeInsets.all(16),children:[
+      Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Icon(Icons.support_agent,color:gold,size:30),SizedBox(height:8),
+        Text('Administrator support',style:TextStyle(color:Colors.white,fontSize:22,fontWeight:FontWeight.w800)),
+        SizedBox(height:6),Text('Help for member management, verification queues, notifications and app updates.',style:TextStyle(color:Colors.white70,fontSize:12,height:1.5))
+      ])),
+      const SizedBox(height:12),
+      Card(color:dark?panel:Colors.white,child:const ListTile(leading:Icon(Icons.people_alt_outlined,color:gold),title:Text('Manage Members errors'),subtitle:Text('Refresh once and note the HTTP status/message. Never share passwords, session cookies or private KYC files.'))),
+      Card(color:dark?panel:Colors.white,child:const ListTile(leading:Icon(Icons.verified_user_outlined,color:gold),title:Text('Review queues'),subtitle:Text('Confirm evidence before financial approvals. Keep rejection reasons factual and record sensitive actions through authorized workflows.'))),
+      Card(color:dark?panel:Colors.white,child:ListTile(leading:const Icon(Icons.email_outlined,color:gold),title:const Text('Contact technical support'),subtitle:const Text('support@monarchcodex.online'),onTap:()=>launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Admin%20Support'))))
+    ]));
 }
 
 class AdminDataPage extends StatefulWidget{
