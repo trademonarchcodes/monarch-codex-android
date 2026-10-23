@@ -89,6 +89,8 @@ class MonarchApi {
   Future<Map<String,dynamic>> notifications() async => Map<String,dynamic>.from((await dio.get('notifications')).data as Map);
   Future<void> markNotificationRead(int id) async { await dio.post('notifications/$id/read'); }
   Future<void> markAllNotificationsRead() async { await dio.post('notifications/read-all'); }
+  Future<void> deleteCommunityPost(int postId) async { await dio.delete('community/posts/$postId'); }
+  Future<void> deleteCommunityComment(int postId,int commentId) async { await dio.delete('community/posts/$postId/comments/$commentId'); }
   Future<Map<String,dynamic>> communityPosts() async => Map<String,dynamic>.from((await dio.get('community/posts')).data as Map);
   Future<Map<String,dynamic>> createCommunityPost(String body) async => Map<String,dynamic>.from((await dio.post('community/posts',data:{'body':body,'type':'post'})).data as Map);
   Future<void> presenceHeartbeat() async { await dio.post('presence/heartbeat'); }
@@ -450,6 +452,12 @@ class _CommunityPageState extends State<CommunityPage>{
   @override void initState(){super.initState();future=widget.api.communityPosts();}
   void reload()=>setState(()=>future=widget.api.communityPosts());
   Future<void> chooseImage()async{final r=await FilePicker.platform.pickFiles(type:FileType.image,withData:true);if(r!=null&&r.files.isNotEmpty&&mounted)setState(()=>image=r.files.first);}
+  Future<void> deletePost(int id)async{
+    final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Delete this post?'),content:const Text('Your post will be removed from the community feed.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('Delete'))]));
+    if(confirmed!=true)return;
+    try{await widget.api.deleteCommunityPost(id);if(mounted){reload();ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Your post was deleted.')));}}
+    catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not delete the post. Please try again.')));}
+  }
   Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState((){sending=true;message=null;});try{final r=await widget.api.createCommunityPostWithImage(body,image);composer.clear();if(mounted)setState((){sending=false;image=null;message=(r['message']??'Post published.').toString();success=true;});reload();}catch(_){if(mounted)setState((){sending=false;message='Could not publish your post. Check your connection and image format.';success=false;});}}
   String presenceLabel(Map<String,dynamic> p){if(p['authorOnline']==true||p['authorOnline']==1)return 'Online now';final raw=p['authorLastSeen'];if(raw==null)return 'Status unavailable';final dt=DateTime.tryParse(raw.toString());if(dt==null)return 'Last seen recently';final d=DateTime.now().difference(dt.toLocal());if(d.inMinutes<1)return 'Last seen just now';if(d.inMinutes<60)return 'Last seen '+d.inMinutes.toString()+'m ago';if(d.inHours<24)return 'Last seen '+d.inHours.toString()+'h ago';return 'Last seen '+d.inDays.toString()+'d ago';}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
@@ -472,7 +480,7 @@ class _CommunityPageState extends State<CommunityPage>{
         Row(children:[const Icon(Icons.account_circle_outlined,color:gold,size:20),const SizedBox(width:7),Expanded(child:Text((p['authorName']??'Monarch member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w800))),Container(width:7,height:7,decoration:BoxDecoration(color:(p['authorOnline']==true||p['authorOnline']==1)?Colors.green:muted,shape:BoxShape.circle)),const SizedBox(width:5),Flexible(child:Text(presenceLabel(p),style:const TextStyle(color:muted,fontSize:10),overflow:TextOverflow.ellipsis))]),
         const SizedBox(height:7),Text((p['body']??'').toString()),
         if(p['hasImage']==true||p['hasImage']==1)Padding(padding:const EdgeInsets.only(top:10),child:FutureBuilder<Uint8List>(future:widget.api.communityImage((p['id'] as num).toInt()),builder:(context,s)=>s.hasData?ClipRRect(borderRadius:BorderRadius.circular(12),child:Image.memory(s.data!,fit:BoxFit.cover)):s.hasError?const SizedBox.shrink():const SizedBox(height:90,child:Center(child:CircularProgressIndicator(strokeWidth:2,color:gold))))),
-        const SizedBox(height:9),Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10)),
+        const SizedBox(height:9),Row(children:[Expanded(child:Text((p['createdAt']??'').toString(),style:const TextStyle(color:muted,fontSize:10))),if(p['isMine']==true||p['isMine']==1)IconButton(onPressed:()=>deletePost((p['id'] as num).toInt()),tooltip:'Delete your post',icon:const Icon(Icons.delete_outline,color:Colors.redAccent,size:20))]),
         Align(alignment:Alignment.centerLeft,child:TextButton.icon(onPressed:()=>showDialog<void>(context:context,builder:(_)=>CommunityCommentsDialog(api:widget.api,postId:(p['id'] as num).toInt(),dark:widget.dark)),icon:const Icon(Icons.mode_comment_outlined,color:gold,size:18),label:Text('Comments (${p['commentCount']??0})'))),
       ])))).toList());
     })
@@ -490,11 +498,17 @@ class _CommunityCommentsDialogState extends State<CommunityCommentsDialog>{
   @override void dispose(){controller.dispose();super.dispose();}
   void reload()=>setState(()=>future=widget.api.communityComments(widget.postId));
   String presence(Map<String,dynamic> p){if(p['authorOnline']==true||p['authorOnline']==1)return 'Online now';final raw=p['authorLastSeen'];if(raw==null)return 'Offline';final dt=DateTime.tryParse(raw.toString());if(dt==null)return 'Offline';final minutes=DateTime.now().difference(dt.toLocal()).inMinutes;return minutes<1?'Last seen just now':minutes<60?'Last seen ${minutes}m ago':'Offline';}
+  Future<void> deleteComment(int id)async{
+    final confirmed=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Delete this comment?'),content:const Text('Your comment will be removed from the discussion.'),actions:[TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('Delete'))]));
+    if(confirmed!=true)return;
+    try{await widget.api.deleteCommunityComment(widget.postId,id);reload();}
+    catch(_){if(mounted)setState(()=>error='Could not delete your comment. Please try again.');}
+  }
   Future<void> send()async{final body=controller.text.trim();if(body.isEmpty||sending)return;setState(()=>sending=true);try{await widget.api.createCommunityComment(widget.postId,body);controller.clear();if(mounted)setState(()=>error=null);reload();}catch(e){if(mounted)setState(()=>error='Could not post your comment. Check your connection and try again.');}finally{if(mounted)setState(()=>sending=false);}}
   @override Widget build(BuildContext context)=>AlertDialog(
     title:const Text('Community comments'),
     content:SizedBox(width:480,height:420,child:Column(mainAxisSize:MainAxisSize.min,children:[
-      Flexible(child:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Padding(padding:EdgeInsets.all(20),child:CircularProgressIndicator(color:gold));if(s.hasError)return Column(children:[const Text('Comments could not be loaded.'),TextButton(onPressed:reload,child:const Text('Retry'))]);final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(items.isEmpty)return const Padding(padding:EdgeInsets.all(12),child:Text('Be the first to comment.'));return ListView(shrinkWrap:true,children:items.map((c)=>ListTile(dense:true,contentPadding:EdgeInsets.zero,leading:const Icon(Icons.account_circle_outlined,color:gold),title:Row(children:[Expanded(child:Text((c['authorName']??'Member').toString(),style:const TextStyle(fontWeight:FontWeight.w800))),Text(presence(c),style:const TextStyle(fontSize:10,color:muted))]),subtitle:Text((c['body']??'').toString()))).toList());})),
+      Flexible(child:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Padding(padding:EdgeInsets.all(20),child:CircularProgressIndicator(color:gold));if(s.hasError)return Column(children:[const Text('Comments could not be loaded.'),TextButton(onPressed:reload,child:const Text('Retry'))]);final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();if(items.isEmpty)return const Padding(padding:EdgeInsets.all(12),child:Text('Be the first to comment.'));return ListView(shrinkWrap:true,children:items.map((c)=>ListTile(dense:true,contentPadding:EdgeInsets.zero,leading:const Icon(Icons.account_circle_outlined,color:gold),title:Row(children:[Expanded(child:Text((c['authorName']??'Member').toString(),style:const TextStyle(fontWeight:FontWeight.w800))),Text(presence(c),style:const TextStyle(fontSize:10,color:muted))]),subtitle:Text((c['body']??'').toString()),trailing:(c['isMine']==true||c['isMine']==1)?IconButton(tooltip:'Delete your comment',icon:const Icon(Icons.delete_outline,color:Colors.redAccent,size:19),onPressed:()=>deleteComment((c['id'] as num).toInt())):null)).toList());})),
       const SizedBox(height:8),TextField(controller:controller,maxLength:2000,maxLines:2,decoration:const InputDecoration(hintText:'Write a comment…',border:OutlineInputBorder())),
       if(error!=null)Align(alignment:Alignment.centerLeft,child:Text(error!,style:const TextStyle(color:Colors.redAccent,fontSize:12)))
     ])),
