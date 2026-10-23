@@ -6,6 +6,8 @@ workflows:
     environment:
       flutter: stable
       java: 17
+      android_signing:
+        - monarch_codex_permanent
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
@@ -14,6 +16,61 @@ workflows:
       - name: Generate Android project files
         script: |
           flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+      - name: Configure permanent Android release signing
+        script: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          kts = Path("android/app/build.gradle.kts")
+          groovy = Path("android/app/build.gradle")
+          p = kts if kts.exists() else groovy
+          assert p.exists(), "Flutter did not generate an Android Gradle build file"
+          s = p.read_text()
+          if p.suffix == ".kts":
+              if 'create("release")' not in s:
+                  marker = "    buildTypes {"
+                  assert marker in s, "Could not locate Kotlin Gradle buildTypes block"
+                  signing = '''    signingConfigs {
+                  create("release") {
+                      if (System.getenv()["CI"].toBoolean()) {
+                          storeFile = file(System.getenv()["CM_KEYSTORE_PATH"])
+                          storePassword = System.getenv()["CM_KEYSTORE_PASSWORD"]
+                          keyAlias = System.getenv()["CM_KEY_ALIAS"]
+                          keyPassword = System.getenv()["CM_KEY_PASSWORD"]
+                      }
+                  }
+              }
+
+          '''
+                  s = s.replace(marker, signing + marker, 1)
+              s, count = re.subn(r'(release\s*\{[^}]*?)signingConfig\s*=\s*signingConfigs\.getByName\("debug"\)', r'\1signingConfig = signingConfigs.getByName("release")', s, count=1, flags=re.S)
+              if count == 0:
+                  s, count = re.subn(r'(release\s*\{)', r'\1\n            signingConfig = signingConfigs.getByName("release")', s, count=1)
+                  assert count == 1, "Could not wire release signing in Kotlin Gradle file"
+          else:
+              if "signingConfigs {" not in s:
+                  marker = "    buildTypes {"
+                  assert marker in s, "Could not locate Groovy Gradle buildTypes block"
+                  signing = '''    signingConfigs {
+                  release {
+                      if (System.getenv()["CI"]) {
+                          storeFile file(System.getenv()["CM_KEYSTORE_PATH"])
+                          storePassword System.getenv()["CM_KEYSTORE_PASSWORD"]
+                          keyAlias System.getenv()["CM_KEY_ALIAS"]
+                          keyPassword System.getenv()["CM_KEY_PASSWORD"]
+                      }
+                  }
+              }
+
+          '''
+                  s = s.replace(marker, signing + marker, 1)
+              s, count = re.subn(r'(release\s*\{[^}]*?)signingConfig\s+signingConfigs\.debug', r'\1signingConfig signingConfigs.release', s, count=1, flags=re.S)
+              if count == 0:
+                  s, count = re.subn(r'(release\s*\{)', r'\1\n            signingConfig signingConfigs.release', s, count=1)
+                  assert count == 1, "Could not wire release signing in Groovy Gradle file"
+          p.write_text(s)
+          assert "signingConfigs" in p.read_text() and "signingConfigs.getByName(\"release\")" in p.read_text() or "signingConfig signingConfigs.release" in p.read_text()
+          PY
       - name: Enable internet access
         script: |
           python3 - <<'PY'
