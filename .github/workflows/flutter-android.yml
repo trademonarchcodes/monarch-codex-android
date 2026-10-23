@@ -10,6 +10,8 @@ permissions:
 jobs:
   flutter:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_SIGNING_CONFIGURED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -32,6 +34,38 @@ jobs:
       - run: dart format lib
       - run: flutter analyze --no-fatal-infos
       - run: flutter test
+      - name: Configure stable Android release signing
+        if: env.ANDROID_SIGNING_CONFIGURED == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/monarch-release.jks
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("android/app/build.gradle.kts")
+          content = path.read_text()
+          if 'signingConfigs.getByName("debug")' not in content:
+              raise SystemExit("Expected generated Flutter debug signing configuration was not found.")
+          signing = '''  signingConfigs {
+              create("release") {
+                  storeFile = file("monarch-release.jks")
+                  storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                  keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                  keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+              }
+          }
+
+          '''
+          if 'create("release")' not in content:
+              content = content.replace("  buildTypes {", signing + "  buildTypes {", 1)
+          content = content.replace('signingConfig = signingConfigs.getByName("debug")',
+                                    'signingConfig = signingConfigs.getByName("release")', 1)
+          path.write_text(content)
+          PY
+          grep -q 'signingConfigs.getByName("release")' android/app/build.gradle.kts
       - run: flutter build apk --release
       - name: Read app version
         id: app_version
@@ -48,7 +82,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Publish latest APK and checksum
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && env.ANDROID_SIGNING_CONFIGURED == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk

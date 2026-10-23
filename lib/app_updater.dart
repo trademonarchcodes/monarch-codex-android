@@ -8,7 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 const _gold = Color(0xFFF3CF3C);
-const _releaseApi = 'https://api.github.com/repos/trademonarchcodes/monarch-codex-android/releases/tags/latest-apk';
+const _releaseApi = 'https://monarchcodex.online/api/mobile/app-update/latest';
 
 class AppUpdaterPage extends StatefulWidget {
   const AppUpdaterPage({super.key});
@@ -70,35 +70,29 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
     try {
       final info = await PackageInfo.fromPlatform();
       final response = await _dio.get<dynamic>(_releaseApi);
-      if (response.data is! Map) throw Exception('The release information is not valid.');
+      if (response.data is! Map) throw Exception('The update service returned invalid release information.');
       final release = Map<String, dynamic>.from(response.data as Map);
-      final body = (release['body'] ?? '').toString();
-      final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
-      if (match == null) throw Exception('The release has no version information yet. Please try again later.');
-      final version = match.group(1)!;
-      final mandatoryMatch = RegExp(r'Mandatory:\s*(true|yes|1)', caseSensitive: false).firstMatch(body);
-      final mandatory = mandatoryMatch != null;
-      final assets = (release['assets'] as List? ?? const [])
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList();
-      Map<String, dynamic>? apk;
-      Map<String, dynamic>? checksum;
-      for (final asset in assets) {
-        if (asset['name'] == 'app-release.apk') apk = asset;
-        if (asset['name'] == 'app-release.apk.sha256') checksum = asset;
+      final version = (release['version'] ?? '').toString().trim();
+      if (!RegExp(r'^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$').hasMatch(version)) {
+        throw Exception('The official update release has no valid version information yet.');
       }
-      if (apk == null || checksum == null) {
-        throw Exception('The official APK or its checksum is not published yet.');
+      final mandatory = release['mandatory'] == true;
+      final apkUri = Uri.tryParse((release['apkUrl'] ?? '').toString());
+      final checksumUri = Uri.tryParse((release['checksumUrl'] ?? '').toString());
+      if (apkUri == null || checksumUri == null ||
+          apkUri.scheme != 'https' || checksumUri.scheme != 'https' ||
+          apkUri.host != 'monarchcodex.online' || checksumUri.host != 'monarchcodex.online') {
+        throw Exception('The official APK or checksum download is not configured securely.');
       }
       if (!mounted) return;
+      final installedVersion = '${info.version}+${info.buildNumber}';
+      final newer = _isNewer(version, installedVersion);
       setState(() {
         _latestVersion = version;
-        _apkUrl = apk!['browser_download_url']?.toString();
-        _checksumUrl = checksum!['browser_download_url']?.toString();
-        _mandatoryUpdate = mandatory;
-        _releaseNotes = body.replaceFirst(match.group(0)!, '').replaceFirst(RegExp(r'Mandatory:\s*(true|yes|1)', caseSensitive: false), '').trim();
-        final newer = _isNewer(version, '${info.version}+${info.buildNumber}');
+        _apkUrl = apkUri.toString();
+        _checksumUrl = checksumUri.toString();
+        _mandatoryUpdate = mandatory && newer;
+        _releaseNotes = (release['releaseNotes'] ?? '').toString().trim();
         _status = newer
             ? 'Version $version is available.${mandatory ? ' This release is marked mandatory; install it as soon as possible.' : ''}'
             : 'You are using the latest version (${info.version}+${info.buildNumber}).';
@@ -106,15 +100,16 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e is DioException
-              ? (e.response?.statusCode == 404
-                  ? 'The official update release was not found. The publisher must create or restore the latest-apk release.'
-                  : e.response?.statusCode == 403 || e.response?.statusCode == 429
-                      ? 'The update service temporarily limited requests. Please wait a little and try again.'
-                      : e.response?.statusCode != null
-                          ? 'The update service returned HTTP ${e.response!.statusCode}. Please try again later.'
-                          : 'Could not connect to the official update service. Check your internet connection and try again.')
-              : e.toString().replaceFirst('Exception: ', '');
+          final serverMessage = e is DioException && e.response?.data is Map
+              ? (e.response!.data as Map)['message']?.toString()
+              : null;
+          _error = serverMessage ?? (e is DioException
+              ? (e.response?.statusCode == 403 || e.response?.statusCode == 429
+                  ? 'The update service temporarily limited requests. Please wait a little and try again.'
+                  : e.response?.statusCode != null
+                      ? 'The update service returned HTTP ${e.response!.statusCode}. Please try again later.'
+                      : 'Could not connect to the official update service. Check your internet connection and try again.')
+              : e.toString().replaceFirst('Exception: ', ''));
           _status = 'Update check could not be completed.';
         });
       }

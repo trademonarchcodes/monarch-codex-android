@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:dio/dio.dart';
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:monarch_codex/native_workspaces.dart';
 import 'package:monarch_codex/app_updater.dart';
@@ -582,14 +584,153 @@ class _ShellState extends State<Shell> {
   static const names = ['Overview', 'Wallet', 'Invest', 'Market', 'Community', 'Profile'];
   static const icons = [Icons.grid_view_rounded, Icons.account_balance_wallet_rounded, Icons.trending_up_rounded, Icons.show_chart_rounded, Icons.groups_rounded, Icons.person_rounded];
   Timer? presenceTimer;
-  @override void initState() { super.initState(); refresh(); widget.api.presenceHeartbeat().catchError((_){}); presenceTimer=Timer.periodic(const Duration(seconds:45),(_)=>widget.api.presenceHeartbeat().catchError((_){})); }
-  @override void dispose(){presenceTimer?.cancel();super.dispose();}
+  Timer? indicatorTimer;
+  int communityUnread = 0;
+  int notificationUnread = 0;
+  List<Map<String, dynamic>> _notificationItems = [];
+  bool updateAvailable = false;
+  @override void initState() {
+    super.initState();
+    refresh();
+    _refreshIndicators();
+    _checkForAppUpdate(notify: true);
+    widget.api.presenceHeartbeat().catchError((_){});
+    presenceTimer=Timer.periodic(const Duration(seconds:45),(_)=>widget.api.presenceHeartbeat().catchError((_){}));
+    indicatorTimer=Timer.periodic(const Duration(seconds:60),(_) { _refreshIndicators(); _checkForAppUpdate(notify: true); });
+  }
+  @override void dispose(){presenceTimer?.cancel();indicatorTimer?.cancel();super.dispose();}
+  Future<File> _communityMarkerFile() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/community_last_seen_post_id.txt');
+  }
+  Future<void> _refreshIndicators() async {
+    try {
+      final results = await Future.wait([widget.api.notifications(), widget.api.communityPosts()]);
+      final notificationData = results[0];
+      final postsData = results[1];
+      final items = (notificationData['items'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final unreadItems = items.where((item) => item['readAt'] == null).toList();
+      final posts = (postsData['items'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
+      final ids = posts.map((p) => int.tryParse((p['id'] ?? '').toString()) ?? 0).where((id) => id > 0).toList();
+      final latestId = ids.isEmpty ? 0 : ids.reduce((a, b) => a > b ? a : b);
+      final marker = await _communityMarkerFile();
+      int? lastSeen;
+      if (await marker.exists()) lastSeen = int.tryParse((await marker.readAsString()).trim());
+      if (lastSeen == null || (tab == 4 && special == null)) {
+        lastSeen = latestId;
+        await marker.writeAsString('$latestId', flush: true);
+      }
+      final newPosts = ids.where((id) => id > lastSeen!).length;
+      if (!mounted) return;
+      setState(() {
+        _notificationItems = items;
+        notificationUnread = unreadItems.length;
+        communityUnread = newPosts;
+      });
+    } catch (_) {
+      // Keep the last known indicators when the service is temporarily unavailable.
+    }
+  }
+  Future<void> _markCommunitySeen() async {
+    try {
+      final data = await widget.api.communityPosts();
+      final posts = (data['items'] as List? ?? const []).whereType<Map>().toList();
+      final ids = posts.map((p) => int.tryParse((p['id'] ?? '').toString()) ?? 0).where((id) => id > 0).toList();
+      final latestId = ids.isEmpty ? 0 : ids.reduce((a, b) => a > b ? a : b);
+      final marker = await _communityMarkerFile();
+      await marker.writeAsString('$latestId', flush: true);
+      if (mounted) setState(() => communityUnread = 0);
+    } catch (_) {}
+  }
+  int _categoryUnread(String category) => _notificationItems.where((item) {
+    if (item['readAt'] != null) return false;
+    final type = (item['type'] ?? '').toString().toLowerCase();
+    switch (category) {
+      case 'wallet': return type.contains('deposit') || type.contains('withdraw') || type.contains('transaction') || type.contains('wallet');
+      case 'invest': return type.contains('invest');
+      case 'market': return type.contains('market');
+      case 'profile': return type.contains('kyc') || type.contains('role') || type.contains('profile');
+      case 'community': return type.contains('community');
+      default: return false;
+    }
+  }).length;
+  int _sectionUnreadCount(int index) {
+    switch (index) {
+      case 1: return _categoryUnread('wallet');
+      case 2: return _categoryUnread('invest');
+      case 3: return _categoryUnread('market');
+      case 4: return communityUnread + _categoryUnread('community');
+      case 5: return _categoryUnread('profile');
+      default: return 0;
+    }
+  }
+  Widget _countBadge(Widget child, int count, {double size = 16}) => Stack(clipBehavior: Clip.none, children: [
+    child,
+    if (count > 0) Positioned(right: -5, top: -5, child: Container(
+      constraints: BoxConstraints(minWidth: size, minHeight: size),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(color: const Color(0xFFE5484D), borderRadius: BorderRadius.circular(99), border: Border.all(color: ink, width: 1)),
+      child: Text(count > 99 ? '99+' : '$count', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 8, height: 1.2, fontWeight: FontWeight.w900)),
+    )),
+  ]);
+  bool _isNewerVersion(String candidate, String installed) {
+    List<int> parts(String value) {
+      final pieces = value.split('+');
+      final version = pieces.first.split('.').map((p) => int.tryParse(p) ?? 0).toList();
+      while (version.length < 3) { version.add(0); }
+      version.add(pieces.length > 1 ? int.tryParse(pieces[1]) ?? 0 : 0);
+      return version;
+    }
+    final a = parts(candidate), b = parts(installed);
+    for (var i = 0; i < 4; i++) { if (a[i] != b[i]) return a[i] > b[i]; }
+    return false;
+  }
+  Future<void> _checkForAppUpdate({bool notify = false}) async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final response = await Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: const {'Accept': 'application/json'},
+      )).get<dynamic>('https://monarchcodex.online/api/mobile/app-update/latest');
+      if (response.data is! Map) return;
+      final release = Map<String, dynamic>.from(response.data as Map);
+      final version = (release['version'] ?? '').toString().trim();
+      final apkUri = Uri.tryParse((release['apkUrl'] ?? '').toString());
+      final checksumUri = Uri.tryParse((release['checksumUrl'] ?? '').toString());
+      if (version.isEmpty || apkUri == null || checksumUri == null ||
+          apkUri.scheme != 'https' || checksumUri.scheme != 'https' ||
+          apkUri.host != 'monarchcodex.online' || checksumUri.host != 'monarchcodex.online') return;
+      final newer = _isNewerVersion(version, info.version + '+' + info.buildNumber);
+      final newlyAvailable = newer && !updateAvailable;
+      if (mounted) setState(() => updateAvailable = newer);
+      if (notify && newlyAvailable && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Monarch Codex update ' + version + ' is available.'),
+            action: SnackBarAction(label: 'UPDATE', onPressed: _openUpdater),
+            duration: const Duration(seconds: 8),
+          ));
+        });
+      }
+    } catch (_) {
+      // A failed check must not block sign-in or dashboard access.
+    }
+  }
+  Future<void> _openUpdater() async {
+    await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage()));
+    if (mounted) _checkForAppUpdate();
+  }
   Future<void> refresh() async {
     setState(() { loading = true; error = null; });
     try { final result = await widget.api.overview(); if (mounted) setState(() { data = result; loading = false; }); }
     catch (e) { if (mounted) setState(() { loading = false; error = e is DioException && e.response?.data is Map ? ((e.response!.data as Map)['message']?.toString() ?? 'Could not load account data.') : 'Could not load account data.'; }); }
   }
-  void page(String? value, [int? index]) => setState(() { special = value; if (index != null) tab = index; menu = false; });
+  void page(String? value, [int? index]) {
+    setState(() { special = value; if (index != null) tab = index; menu = false; });
+    if (index == 4) _markCommunitySeen();
+  }
   @override Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     final title = special ?? names[tab];
@@ -612,8 +753,8 @@ class _ShellState extends State<Shell> {
             Text(title.toUpperCase(), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: .8)),
             Row(children: [Expanded(child: Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))), IconButton(visualDensity: VisualDensity.compact, tooltip: 'Copy Monarch UID', onPressed: () { Clipboard.setData(ClipboardData(text: (widget.member['uid'] ?? '').toString())); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Monarch UID copied'))); }, icon: const Icon(Icons.copy, size: 14, color: gold))]),
           ])),
-          IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage())), tooltip: 'Check for app updates', icon: const Icon(Icons.system_update_alt_rounded, color: gold)),
-          IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
+          IconButton(onPressed: _openUpdater, tooltip: updateAvailable ? 'Update available — tap to install' : 'Check for app updates', icon: _countBadge(const Icon(Icons.system_update_alt_rounded, color: gold), updateAvailable ? 1 : 0)),
+          IconButton(onPressed: () => page('Notifications'), tooltip: notificationUnread > 0 ? '$notificationUnread unread notifications' : 'Notifications', icon: _countBadge(const Icon(Icons.notifications_none_rounded, color: gold), notificationUnread)),
         ])),
         Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 2 ? InvestmentsPage(api: widget.api, dark: dark) : tab == 5 ? profilePage(dark) : tab == 3 ? LiveMarketsPage(api: widget.api, dark: dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], 'Market information', icons[tab], 'Market information is temporarily unavailable.', dark)),
         if (special == null) bottomNav(dark),
@@ -720,7 +861,7 @@ class _ShellState extends State<Shell> {
     child: Row(children: List.generate(names.length, (i) => Expanded(child: InkWell(
       onTap: () => page(null, i), borderRadius: BorderRadius.circular(11),
       child: Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withValues(alpha:.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: Icon(icons[i], size: 18, color: tab == i ? gold : muted)),
+        Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), decoration: BoxDecoration(color: tab == i ? gold.withValues(alpha:.14) : Colors.transparent, borderRadius: BorderRadius.circular(99)), child: _countBadge(Icon(icons[i], size: 18, color: tab == i ? gold : muted), _sectionUnreadCount(i), size: 15)),
         const SizedBox(height: 3), Text(names[i], maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(fontSize: 8.5, fontWeight: tab == i ? FontWeight.w900 : FontWeight.w600, color: tab == i ? gold : muted)),
       ])),
     )))),
@@ -741,6 +882,8 @@ class _ShellState extends State<Shell> {
       sideItem('Community', Icons.groups_outlined, () => page(null, 4), dark), sideItem('Profile', Icons.person_outline, () => page(null, 5), dark),
       const Divider(color: Color(0xFF39352A)), sideItem('KYC Verification', Icons.verified_user_outlined, () => page('KYC Verification'), dark),
       sideItem('Referrals', Icons.share_outlined, () => page('Referrals'), dark), sideItem('Settings', Icons.settings_outlined, () => page('Settings'), dark),
+      sideItem('Notifications', Icons.notifications_none_rounded, () => page('Notifications'), dark),
+      sideItem('App updates', Icons.system_update_alt_rounded, _openUpdater, dark),
       sideItem('Help & Support', Icons.support_agent, () => page('Help & Support'), dark),
     ])),
     TextButton.icon(onPressed: widget.signOut, icon: const Icon(Icons.logout, size: 17), label: const Text('Sign out'), style: TextButton.styleFrom(foregroundColor: const Color(0xFFFF8D85))),
@@ -749,10 +892,20 @@ class _ShellState extends State<Shell> {
   Widget avatar(Map<String, dynamic> member, double size, double radius) =>
       MemberAvatar(api: widget.api, member: member, size: size, radius: radius, version: photoVersion);
 
-  Widget sideItem(String label, IconData icon, VoidCallback action, bool dark) => ListTile(
-    dense: true, visualDensity: const VisualDensity(vertical: -2), minLeadingWidth: 18, horizontalTitleGap: 7,
-    leading: Icon(icon, color: gold, size: 18), title: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), onTap: action,
-  );
+  Widget sideItem(String label, IconData icon, VoidCallback action, bool dark) {
+    final count = label == 'Community' ? communityUnread + _categoryUnread('community')
+        : label == 'Wallet' ? _categoryUnread('wallet')
+        : label == 'Invest' ? _categoryUnread('invest')
+        : label == 'Market' ? _categoryUnread('market')
+        : label == 'Profile' ? _categoryUnread('profile')
+        : label == 'Notifications' ? notificationUnread
+        : label == 'App updates' && updateAvailable ? 1 : 0;
+    return ListTile(
+      dense: true, visualDensity: const VisualDensity(vertical: -2), minLeadingWidth: 18, horizontalTitleGap: 7,
+      leading: _countBadge(Icon(icon, color: gold, size: 18), count, size: 15),
+      title: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)), onTap: action,
+    );
+  }
 
   Widget balanceCard(double ngn, double usd, double rate) {
     final canConvert = rate > 0;
