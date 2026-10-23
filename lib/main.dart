@@ -688,23 +688,27 @@ class _ShellState extends State<Shell> {
   Future<void> _checkForAppUpdate({bool notify = false}) async {
     try {
       final info = await PackageInfo.fromPlatform();
-      final response = await Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 15), headers: const {'Accept': 'application/vnd.github+json'})).get<dynamic>('https://api.github.com/repos/trademonarchcodes/monarch-codex-android/releases/tags/latest-apk');
+      final response = await Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 15),
+        headers: const {'Accept': 'application/json'},
+      )).get<dynamic>('https://monarchcodex.online/api/mobile/app-update/latest');
       if (response.data is! Map) return;
       final release = Map<String, dynamic>.from(response.data as Map);
-      final body = (release['body'] ?? '').toString();
-      final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
-      final assets = (release['assets'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
-      final hasApk = assets.any((x) => x['name'] == 'app-release.apk' && (x['browser_download_url'] ?? '').toString().startsWith('https://'));
-      final hasChecksum = assets.any((x) => x['name'] == 'app-release.apk.sha256' && (x['browser_download_url'] ?? '').toString().startsWith('https://'));
-      if (match == null || !hasApk || !hasChecksum) return;
-      final newer = _isNewerVersion(match.group(1)!, '${info.version}+${info.buildNumber}');
+      final version = (release['version'] ?? '').toString().trim();
+      final apkUri = Uri.tryParse((release['apkUrl'] ?? '').toString());
+      final checksumUri = Uri.tryParse((release['checksumUrl'] ?? '').toString());
+      if (version.isEmpty || apkUri == null || checksumUri == null ||
+          apkUri.scheme != 'https' || checksumUri.scheme != 'https' ||
+          apkUri.host != 'monarchcodex.online' || checksumUri.host != 'monarchcodex.online') return;
+      final newer = _isNewerVersion(version, info.version + '+' + info.buildNumber);
       final newlyAvailable = newer && !updateAvailable;
       if (mounted) setState(() => updateAvailable = newer);
       if (notify && newlyAvailable && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Monarch Codex update ${match.group(1)} is available.'),
+            content: Text('Monarch Codex update ' + version + ' is available.'),
             action: SnackBarAction(label: 'UPDATE', onPressed: _openUpdater),
             duration: const Duration(seconds: 8),
           ));
