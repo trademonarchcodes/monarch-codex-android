@@ -41,12 +41,6 @@ String _workspaceError(Object error) {
   return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
 }
 
-Future<void> _openAdminRoute(String route) async {
-  final uri=Uri.parse('$site$route');
-  final opened=await launchUrl(uri,mode:LaunchMode.externalApplication);
-  if(!opened) throw Exception('Could not open the administrator review page.');
-}
-
 class AdminFeedbackPage extends StatefulWidget {
   const AdminFeedbackPage({super.key, required this.api, required this.dark});
   final MonarchApi api;
@@ -141,7 +135,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
               'MEMBER FEEDBACK',
               style: TextStyle(
                 color: gold,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 1,
               ),
             ),
@@ -188,7 +182,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
           children: [
             Text(
               (item['title'] ?? 'Feedback').toString(),
-              style: const TextStyle(color: gold, fontWeight: FontWeight.w900),
+              style: const TextStyle(color: gold, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
             Text(
@@ -198,7 +192,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
             const SizedBox(height: 8),
             Text((item['description'] ?? '').toString()),
             const SizedBox(height: 8),
-            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w700)),
             TextField(
               controller: controller,
               maxLines: 2,
@@ -322,12 +316,13 @@ class _AdminShellState extends State<AdminShell>{
     if(index==5)page=AdminDataPage(api:widget.api,kind:'audit',dark:dark);
     if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
     if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
-    if(index==8){try{await _openAdminRoute('/admin/settings');}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open settings: '+e.toString())));}if(mounted)setState(()=>selected=0);return;}
+    if(index==8){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>AdminAppSettingsPage(dark:Theme.of(context).brightness==Brightness.dark,light:widget.light,toggleTheme:widget.toggleTheme)));if(mounted)setState(()=>selected=0);return;}
     if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:(widget.member['id'] as num?)?.toInt()??(widget.member['memberId'] as num?)?.toInt()??-1);
     if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
     if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
     if(index==12)page=AdminFeedbackPage(api:widget.api,dark:dark);
     if(index==14)page=NotificationsPage(api:widget.api,dark:dark);
+     if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -402,12 +397,13 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(5,Icons.history_outlined,'Audit history'),
             _navItem(6,Icons.query_stats_outlined,'Analytics'),
             _navItem(7,Icons.shield_outlined,'Security centre'),
-            _navItem(8,Icons.settings_outlined,'Settings'),
+            _navItem(8,Icons.settings_outlined,'App settings'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(9,Icons.admin_panel_settings_outlined,'Admin permissions'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
             if(['super_admin','main_admin'].contains((widget.member['adminRole']??'').toString())) _navItem(12,Icons.feedback_outlined,'Member feedback'),
             _navItem(14,Icons.notifications_none_rounded,'Notifications'),
+             _navItem(15,Icons.support_agent,'Help & Support'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -553,6 +549,89 @@ class _AdminMembersPageState extends State<AdminMembersPage>{
  Future<void> remove(Map<String,dynamic> m)async{final id=(m['id'] as num).toInt();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Delete member?'),content:Text('Permanently delete '+(m['fullName']??m['username']??'this member').toString()+'? This cannot be undone.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('Delete permanently'))]));if(ok!=true)return;setState(()=>busy=true);try{await widget.api.deleteMember(id);if(mounted)setState(()=>notice='Member deleted.');reload();}catch(e){if(mounted)setState(()=>notice=err(e));}finally{if(mounted)setState(()=>busy=false);}}
  Future<void> details(Map<String,dynamic> m)async{final id=(m['id'] as num).toInt();showDialog(context:context,builder:(_)=>const Center(child:CircularProgressIndicator(color:gold)));try{final d=await widget.api.adminMember(id);if(!mounted)return;Navigator.of(context,rootNavigator:true).pop();final x=Map<String,dynamic>.from(d['member'] as Map);final wallets=(d['wallets'] as List? ??[]).whereType<Map>().toList();final kyc=(d['kyc'] as List? ??[]).whereType<Map>().toList();showDialog(context:context,builder:(c)=>AlertDialog(title:Text((x['fullName']??'Member').toString()),content:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[for(final k in ['id','uid','username','email','phone','createdAt','emailVerifiedAt','isBlocked'])Padding(padding:const EdgeInsets.only(bottom:6),child:Text(k+': '+(x[k]??'—').toString())),const Divider(),const Text('Wallets',style:TextStyle(fontWeight:FontWeight.bold)),for(final w in wallets)Text((w['currency']??'').toString()+': '+(w['balance']??'0').toString()),const SizedBox(height:8),const Text('Recent KYC',style:TextStyle(fontWeight:FontWeight.bold)),for(final k in kyc)Text((k['status']??'').toString()+' · '+(k['submittedAt']??'').toString())])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Close'))]));}catch(e){if(mounted){Navigator.of(context,rootNavigator:true).pop();ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(err(e))));}}}
  @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:const Text('MANAGE MEMBERS'),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),body:Column(children:[Padding(padding:const EdgeInsets.all(12),child:Row(children:[Expanded(child:TextField(controller:search,onSubmitted:(_)=>reload(),decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search name, email, username or UID',border:OutlineInputBorder()))),IconButton(onPressed:reload,icon:const Icon(Icons.search,color:gold))])),if(notice!=null)Padding(padding:const EdgeInsets.all(8),child:Text(notice!,style:const TextStyle(color:gold))),Expanded(child:FutureBuilder<Map<String,dynamic>>(future:future,builder:(c,s){if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));if(s.hasError)return ListView(padding:const EdgeInsets.all(16),children:[Text(err(s.error!)),FilledButton(onPressed:reload,child:const Text('Retry'))]);final rows=(s.data?['items'] as List? ??[]).whereType<Map>().map((m)=>Map<String,dynamic>.from(m)).toList();if(rows.isEmpty)return const Center(child:Text('No members found.'));return ListView.builder(itemCount:rows.length,itemBuilder:(c,i){final m=rows[i];final blocked=m['isBlocked']==true||m['isBlocked']==1;return Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:CircleAvatar(backgroundColor:blocked?Colors.red.withOpacity(.15):const Color(0x332E2716),child:Icon(blocked?Icons.block:Icons.person,color:blocked?Colors.red:gold)),title:Text((m['fullName']??m['username']??'Member').toString()),subtitle:Text((m['email']??'').toString()+'\nUID: '+(m['uid']??'—').toString()+' · '+(blocked?'Blocked':'Active')),isThreeLine:true,onTap:()=>details(m),trailing:PopupMenuButton<String>(enabled:!busy,itemBuilder:(_)=>[const PopupMenuItem(value:'details',child:Text('View details')),PopupMenuItem(value:'block',child:Text(blocked?'Unblock member':'Block member')),const PopupMenuItem(value:'delete',child:Text('Delete member'))],onSelected:(v){if(v=='details')details(m);if(v=='block')toggle(m,!blocked);if(v=='delete')remove(m);},icon:const Icon(Icons.more_vert,color:gold))));});}))]));
+}
+
+class AdminAppSettingsPage extends StatelessWidget {
+  const AdminAppSettingsPage({super.key, required this.dark, required this.light, required this.toggleTheme});
+  final bool dark;
+  final bool light;
+  final VoidCallback toggleTheme;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('APP SETTINGS')),
+    body: ListView(padding: const EdgeInsets.all(16), children: [
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFF6D5920)),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF30250C), Color(0xFF151411), Color(0xFF101012)],
+          ),
+        ),
+        child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('MONARCH CODEX', style: TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          SizedBox(height: 8),
+          Text('Your app, your workspace.', style: TextStyle(color: Colors.white, fontSize: 23, fontWeight: FontWeight.w800)),
+          SizedBox(height: 6),
+          Text('Manage the Android app experience here without opening the website dashboard.', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      Card(color: dark ? panel : Colors.white, child: SwitchListTile(
+        value: light,
+        activeThumbColor: gold,
+        secondary: const Icon(Icons.contrast, color: gold),
+        title: const Text('Light appearance', style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: const Text('Use white, light gold and black across the app.'),
+        onChanged: (_) => toggleTheme(),
+      )),
+      Card(color: dark ? panel : Colors.white, child: ListTile(
+        leading: const Icon(Icons.system_update_alt, color: gold),
+        title: const Text('App updates', style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: const Text('Check for the latest official Monarch Codex APK.'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage())),
+      )),
+      Card(color: dark ? panel : Colors.white, child: ListTile(
+        leading: const Icon(Icons.support_agent, color: gold),
+        title: const Text('Administrator support', style: TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: const Text('Contact support@monarchcodex.online for app or access issues.'),
+        trailing: const Icon(Icons.open_in_new),
+        onTap: () => launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Admin%20App%20Support')),
+      )),
+      Container(
+        margin: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: mcCard(dark),
+        child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.shield_outlined, color: gold),
+          SizedBox(width: 10),
+          Expanded(child: Text('Security: role permissions and financial actions remain enforced by the server. Appearance settings do not grant additional access.', style: TextStyle(color: muted, fontSize: 12, height: 1.5))),
+        ]),
+      ),
+    ]),
+  );
+}
+
+class AdminHelpSupportPage extends StatelessWidget {
+  const AdminHelpSupportPage({super.key,required this.dark});
+  final bool dark;
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('ADMIN HELP & SUPPORT')),
+    body:ListView(padding:const EdgeInsets.all(16),children:[
+      Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:const Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Icon(Icons.support_agent,color:gold,size:30),SizedBox(height:8),
+        Text('Administrator support',style:TextStyle(color:Colors.white,fontSize:22,fontWeight:FontWeight.w800)),
+        SizedBox(height:6),Text('Help for member management, verification queues, notifications and app updates.',style:TextStyle(color:Colors.white70,fontSize:12,height:1.5))
+      ])),
+      const SizedBox(height:12),
+      Card(color:dark?panel:Colors.white,child:const ListTile(leading:Icon(Icons.people_alt_outlined,color:gold),title:Text('Manage Members errors'),subtitle:Text('Refresh once and note the HTTP status/message. Never share passwords, session cookies or private KYC files.'))),
+      Card(color:dark?panel:Colors.white,child:const ListTile(leading:Icon(Icons.verified_user_outlined,color:gold),title:Text('Review queues'),subtitle:Text('Confirm evidence before financial approvals. Keep rejection reasons factual and record sensitive actions through authorized workflows.'))),
+      Card(color:dark?panel:Colors.white,child:ListTile(leading:const Icon(Icons.email_outlined,color:gold),title:const Text('Contact technical support'),subtitle:const Text('support@monarchcodex.online'),onTap:()=>launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Admin%20Support'))))
+    ]));
 }
 
 class AdminDataPage extends StatefulWidget{
@@ -1177,12 +1256,12 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
     if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Cooperative verification queue unavailable.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('Check the member’s submitted registration name and email with the Cooperative administrator. Approve only after the registration is confirmed; reject with a clear reason if it cannot be verified. Never ask for passwords or OTPs.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No pending connection requests.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
       ...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController());return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text((x['memberName']??'Member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        Text((x['memberName']??'Member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),
         const SizedBox(height:4),Text('Member email: ${x['memberEmail']??'—'}'),
         Text('Registered name: ${x['registeredName']??'—'}'),Text('Registered email: ${x['registeredEmail']??'—'}'),
         Text('Submitted: ${x['createdAt']??'—'}',style:const TextStyle(color:muted,fontSize:10)),
@@ -1222,13 +1301,13 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
     final categories=(data['categories'] as List? ?? const []).map((x)=>x.toString()).toList();
     final permissions=(data['permissions'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ADMIN ACCESS CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('ADMIN ACCESS CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('Set access separately for each administrator and category. Green grants full access; Gold grants only the actions you select; Red blocks access. Only the Founder / Super Admin may change these permissions. Administrators cannot elevate their own access.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...admins.where((a)=>(a['role']??'').toString()!='super_admin').map((admin){
         final memberId=(admin['memberId'] as num).toInt();
         return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text((admin['fullName']??admin['email']??'Administrator').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+          Text((admin['fullName']??admin['email']??'Administrator').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),
           Text((admin['role']??'').toString().replaceAll('_',' ').toUpperCase(),style:const TextStyle(color:muted,fontSize:10)),
           const SizedBox(height:8),
           ...categories.map((category){
@@ -1293,7 +1372,7 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
     if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Social link management requires Super Admin access and the platform migration.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('These are the official links members can open from Monarch Codex. Use a valid HTTPS address and switch a link on only after testing it. Leave a platform blank or inactive to hide it. Founder personal contacts should remain separate unless deliberately published.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...items.map((item){
@@ -1302,7 +1381,7 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
         urls.putIfAbsent(key,()=>TextEditingController(text:(item['url']??'').toString()));
         active.putIfAbsent(key,()=>item['active']==true||item['active']==1);
         return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),Switch(value:active[key]!,activeThumbColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
+          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700))),Switch(value:active[key]!,activeThumbColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
           TextField(controller:labels[key],decoration:const InputDecoration(labelText:'Public label',border:OutlineInputBorder())),
           const SizedBox(height:8),TextField(controller:urls[key],keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'HTTPS URL (blank hides the link)',border:OutlineInputBorder())),
           Align(alignment:Alignment.centerRight,child:FilledButton(onPressed:saving.contains(key)?null:()=>save(key),child:Text(saving.contains(key)?'Saving…':'Save')))
