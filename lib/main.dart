@@ -612,7 +612,7 @@ class _ShellState extends State<Shell> {
       final unreadItems = items.where((item) => item['readAt'] == null).toList();
       final posts = (postsData['items'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
       final ids = posts.map((p) => int.tryParse((p['id'] ?? '').toString()) ?? 0).where((id) => id > 0).toList();
-      final latestId = ids.isEmpty ? 0 : ids.reduce(math.max);
+      final latestId = ids.isEmpty ? 0 : ids.reduce((a, b) => a > b ? a : b);
       final marker = await _communityMarkerFile();
       int? lastSeen;
       if (await marker.exists()) lastSeen = int.tryParse((await marker.readAsString()).trim());
@@ -636,7 +636,7 @@ class _ShellState extends State<Shell> {
       final data = await widget.api.communityPosts();
       final posts = (data['items'] as List? ?? const []).whereType<Map>().toList();
       final ids = posts.map((p) => int.tryParse((p['id'] ?? '').toString()) ?? 0).where((id) => id > 0).toList();
-      final latestId = ids.isEmpty ? 0 : ids.reduce(math.max);
+      final latestId = ids.isEmpty ? 0 : ids.reduce((a, b) => a > b ? a : b);
       final marker = await _communityMarkerFile();
       await marker.writeAsString('$latestId', flush: true);
       if (mounted) setState(() => communityUnread = 0);
@@ -692,7 +692,7 @@ class _ShellState extends State<Shell> {
       if (response.data is! Map) return;
       final release = Map<String, dynamic>.from(response.data as Map);
       final body = (release['body'] ?? '').toString();
-      final match = RegExp(r'Version:\\s*([0-9]+\\.[0-9]+\\.[0-9]+\\+[0-9]+)', caseSensitive: false).firstMatch(body);
+      final match = RegExp(r'Version:\s*([0-9]+\.[0-9]+\.[0-9]+\+[0-9]+)', caseSensitive: false).firstMatch(body);
       final assets = (release['assets'] as List? ?? const []).whereType<Map>().map((x) => Map<String, dynamic>.from(x)).toList();
       final hasApk = assets.any((x) => x['name'] == 'app-release.apk' && (x['browser_download_url'] ?? '').toString().startsWith('https://'));
       final hasChecksum = assets.any((x) => x['name'] == 'app-release.apk.sha256' && (x['browser_download_url'] ?? '').toString().startsWith('https://'));
@@ -894,7 +894,8 @@ class _ShellState extends State<Shell> {
         : label == 'Invest' ? _categoryUnread('invest')
         : label == 'Market' ? _categoryUnread('market')
         : label == 'Profile' ? _categoryUnread('profile')
-        : label == 'Notifications' ? notificationUnread : 0;
+        : label == 'Notifications' ? notificationUnread
+        : label == 'App updates' && updateAvailable ? 1 : 0;
     return ListTile(
       dense: true, visualDensity: const VisualDensity(vertical: -2), minLeadingWidth: 18, horizontalTitleGap: 7,
       leading: _countBadge(Icon(icon, color: gold, size: 18), count, size: 15),
