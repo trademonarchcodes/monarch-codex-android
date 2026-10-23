@@ -1,0 +1,56 @@
+name: Generate Permanent Android Signing Key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate keystore and encoded copy
+        id: key
+        shell: bash
+        run: |
+          set -euo pipefail
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          KEY_ALIAS="monarchcodex"
+          KEY_PASSWORD="$STORE_PASSWORD"
+
+          keytool -genkeypair -v \
+            -keystore monarch-codex-release.jks \
+            -storetype JKS \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA -keysize 3072 -validity 10000 \
+            -dname "CN=Monarch Codex, OU=Android, O=Monarch Codex, L=Port Harcourt, ST=Rivers, C=NG"
+
+          base64 -w 0 monarch-codex-release.jks > ANDROID_KEYSTORE_BASE64.txt
+          {
+            echo "## Permanent Android signing key generated"
+            echo ""
+            echo "**Keep this page and the downloaded artifact private.** Anyone with access to this private repository run can see the password and download the keystore."
+            echo ""
+            echo "- Secret name: `ANDROID_KEYSTORE_PASSWORD`"
+            echo "- Secret value: `$STORE_PASSWORD`"
+            echo "- Secret name: `ANDROID_KEY_PASSWORD`"
+            echo "- Secret value: `$KEY_PASSWORD`"
+            echo "- Secret name: `ANDROID_KEY_ALIAS`"
+            echo "- Secret value: `$KEY_ALIAS`"
+            echo ""
+            echo "After downloading the artifact, open ANDROID_KEYSTORE_BASE64.txt and save its complete contents as the value of the repository secret `ANDROID_KEYSTORE_BASE64`."
+            echo ""
+            echo "Do not delete or lose the downloaded keystore. Store an encrypted backup."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload keystore and Base64 secret source
+        uses: actions/upload-artifact@v4
+        with:
+          name: monarch-codex-signing-key
+          path: |
+            monarch-codex-release.jks
+            ANDROID_KEYSTORE_BASE64.txt
+          retention-days: 1
