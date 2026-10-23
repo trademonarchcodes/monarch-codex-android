@@ -669,6 +669,15 @@ class _DepositPageState extends State<DepositPage>{
   @override void initState(){super.initState();options=widget.api.depositOptions();}
   @override void dispose(){amount.dispose();reference.dispose();note.dispose();super.dispose();}
   Future<void> chooseProof()async{final r=await FilePicker.platform.pickFiles(type:FileType.custom,allowedExtensions:['jpg','jpeg','png','webp','pdf'],withData:true);if(r!=null&&r.files.isNotEmpty&&mounted)setState(()=>proof=r.files.first);}
+  Future<void> _copyDepositValue(String value,String label) async {
+    if(value.trim().isEmpty){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('No payment detail is available to copy.')));return;}
+    try {
+      await Clipboard.setData(ClipboardData(text:value));
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(label.toLowerCase()+' copied.'),duration:const Duration(seconds:2)));
+    } catch (_) {
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Copy failed. Please select and copy the detail manually.')));
+    }
+  }
   Future<void> submit()async{
     if(!form.currentState!.validate())return;if(proof==null){setState(()=>error='Attach your payment receipt before submitting.');return;}
     setState(() { busy=true; error=''; success=''; });
@@ -690,7 +699,24 @@ class _DepositPageState extends State<DepositPage>{
         if(methods.isNotEmpty)DropdownButtonFormField<String>(initialValue:methodId,isExpanded:true,decoration:const InputDecoration(labelText:'Payment destination'),items:methods.map((m)=>DropdownMenuItem(value:m['id'].toString(),child:Text((m['label']??m['method_type']??'Payment method').toString(),overflow:TextOverflow.ellipsis))).toList(),onChanged:busy?null:(v)=>setState(()=>methodId=v??'')),
         if(methods.isNotEmpty)Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(14),border:Border.all(color:const Color(0xFF6D5920))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Text((selected['label']??'Payment details').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:7),
-          ...['bank_name','account_name','account_number','wallet_network','wallet_asset','wallet_address','instructions'].where((k)=>selected[k]!=null&&selected[k].toString().isNotEmpty).map((k)=>Padding(padding:const EdgeInsets.only(bottom:4),child:Text(k.replaceAll('_',' ').toUpperCase()+': '+selected[k].toString(),style:const TextStyle(fontSize:11,color:muted)))),
+          ...['bank_name','account_name','account_number','wallet_network','wallet_asset','wallet_address','instructions'].where((k)=>selected[k]!=null&&selected[k].toString().trim().isNotEmpty).map((k){
+            final value=selected[k].toString().trim();
+            final label=k.replaceAll('_',' ').toUpperCase();
+            final copyable=['bank_name','account_name','account_number','wallet_address'].contains(k);
+            return Padding(padding:const EdgeInsets.only(bottom:8),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                Text(label,style:const TextStyle(fontSize:10,color:muted,fontWeight:FontWeight.w800,letterSpacing:.4)),
+                const SizedBox(height:3),
+                SelectableText(value,style:const TextStyle(fontSize:12,color:muted,height:1.4)),
+              ])),
+              if(copyable)Padding(padding:const EdgeInsets.only(left:8),child:OutlinedButton.icon(
+                onPressed:()=>_copyDepositValue(value,label),
+                icon:const Icon(Icons.copy,size:14,color:gold),
+                label:const Text('Copy',style:TextStyle(fontSize:11)),
+                style:OutlinedButton.styleFrom(foregroundColor:gold,side:const BorderSide(color:Color(0xFF6D5920)),padding:const EdgeInsets.symmetric(horizontal:10,vertical:7),minimumSize:const Size(0,34),tapTargetSize:MaterialTapTargetSize.shrinkWrap),
+              )),
+            ]));
+          }),
         ])),
         const SizedBox(height:10),TextFormField(controller:amount,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Amount to deposit'),validator:(v){final n=double.tryParse(v??'');return n==null||n<=0?'Enter a valid amount':null;}),
         const SizedBox(height:10),TextFormField(controller:reference,decoration:const InputDecoration(labelText:'Transfer reference'),validator:(v)=>v==null||v.trim().isEmpty?'Enter your transfer reference':null),
