@@ -316,7 +316,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==5)page=AdminDataPage(api:widget.api,kind:'audit',dark:dark);
     if(index==6)page=AdminDataPage(api:widget.api,kind:'analytics',dark:dark);
     if(index==7)page=AdminDataPage(api:widget.api,kind:'security',dark:dark);
-    if(index==8){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>AdminAppSettingsPage(dark:dark,light:widget.light,toggleTheme:widget.toggleTheme)));if(mounted)setState(()=>selected=0);return;}
+    if(index==8){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>AdminAppSettingsPage(dark:Theme.of(context).brightness==Brightness.dark,light:widget.light,toggleTheme:widget.toggleTheme)));if(mounted)setState(()=>selected=0);return;}
     if(index==9)page=AdminPermissionsPage(api:widget.api,dark:dark,currentMemberId:(widget.member['id'] as num?)?.toInt()??(widget.member['memberId'] as num?)?.toInt()??-1);
     if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
     if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
