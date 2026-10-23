@@ -23,7 +23,7 @@ workflows:
           s = p.read_text()
           permission = '<uses-permission android:name="android.permission.INTERNET" />'
           if permission not in s:
-              s, count = re.subn(r'(<manifest\\b[^>]*>)', r'\\1\\n    ' + permission, s, count=1)
+              s, count = re.subn(r'(<manifest\b[^>]*>)', r'\1\n    ' + permission, s, count=1)
               assert count == 1, "Could not find the Android manifest root tag"
           p.write_text(s)
           assert permission in p.read_text()
