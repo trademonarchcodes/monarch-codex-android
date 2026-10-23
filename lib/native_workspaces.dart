@@ -637,6 +637,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
   bool busy = false;
   String? error, notice;
   int selectedDestination = 0;
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const List<Map<String, dynamic>> deskDestinations = [
     {'title': 'Overview', 'route': '/sovereign-admin', 'icon': Icons.dashboard_outlined},
@@ -676,7 +677,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
 
   Future<void> openDeskSection(String route, {int? destination}) async {
     if (destination != null && mounted) setState(() => selectedDestination = destination);
-    Navigator.of(context).maybePop();
+    _scaffoldKey.currentState?.closeDrawer();
     try {
       await _openAdminRoute(route);
     } catch (e) {
@@ -784,6 +785,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
         if (!didPop) confirmAppExit(context);
       },
       child: Scaffold(
+        key: _scaffoldKey,
         appBar: AppBar(
           leading: Builder(builder: (context) => IconButton(
             tooltip: 'Open Sovereign Desk navigation',
