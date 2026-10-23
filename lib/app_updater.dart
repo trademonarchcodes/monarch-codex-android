@@ -85,14 +85,14 @@ class _AppUpdaterPageState extends State<AppUpdaterPage> {
         throw Exception('The official APK or checksum download is not configured securely.');
       }
       if (!mounted) return;
-      if (!mounted) return;
+      final installedVersion = '${info.version}+${info.buildNumber}';
+      final newer = _isNewer(version, installedVersion);
       setState(() {
         _latestVersion = version;
         _apkUrl = apkUri.toString();
         _checksumUrl = checksumUri.toString();
-        _mandatoryUpdate = mandatory;
+        _mandatoryUpdate = mandatory && newer;
         _releaseNotes = (release['releaseNotes'] ?? '').toString().trim();
-        final newer = _isNewer(version, '${info.version}+${info.buildNumber}');
         _status = newer
             ? 'Version $version is available.${mandatory ? ' This release is marked mandatory; install it as soon as possible.' : ''}'
             : 'You are using the latest version (${info.version}+${info.buildNumber}).';
