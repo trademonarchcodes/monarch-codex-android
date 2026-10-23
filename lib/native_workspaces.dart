@@ -621,40 +621,314 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
 }
 
 class SovereignAdminShell extends StatefulWidget {
- const SovereignAdminShell({super.key,required this.api,required this.member,required this.signOut,required this.light,required this.toggleTheme});
- final MonarchApi api;final Map<String,dynamic> member;final Future<void> Function() signOut;final bool light;final VoidCallback toggleTheme;
- @override State<SovereignAdminShell> createState()=>_SovereignAdminShellState();
+  const SovereignAdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
+  final MonarchApi api;
+  final Map<String, dynamic> member;
+  final Future<void> Function() signOut;
+  final bool light;
+  final VoidCallback toggleTheme;
+  @override
+  State<SovereignAdminShell> createState() => _SovereignAdminShellState();
 }
-class _SovereignAdminShellState extends State<SovereignAdminShell>{
- final company=TextEditingController(text:'Sovereign Desk');final message=TextEditingController(text:'Request Partner role for the Sovereign Desk company.');bool busy=false;String? error,notice;
- @override void dispose(){company.dispose();message.dispose();super.dispose();}
- Future<void> requestPartner()async{setState(()=>busy=true);try{await widget.api.requestSovereignPartner(companyName:company.text.trim(),message:message.text.trim());if(mounted)setState(()=>notice='Partner request submitted for review.');}catch(e){if(mounted)setState(()=>error=e is DioException&&e.response?.data is Map?((e.response!.data as Map)['message']??'Request failed').toString():e.toString());}finally{if(mounted)setState(()=>busy=false);}}
- Future<void> openDeskSection(String route)async{try{await _openAdminRoute(route);}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Could not open this workspace: ${e.toString()}')));}}
- @override Widget build(BuildContext context){final dark=Theme.of(context).brightness==Brightness.dark;return PopScope<Object?>(canPop:false,onPopInvokedWithResult:(didPop,result){if(!didPop)confirmAppExit(context);},child:Scaffold(appBar:AppBar(automaticallyImplyLeading:false,title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:34,height:34),const SizedBox(width:8),const Expanded(child:Text('SOVEREIGN DESK CONTROL',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),actions:[IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const AppUpdaterPage())),icon:const Icon(Icons.system_update_alt,color:gold),tooltip:'Check for app updates'),IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold)),IconButton(onPressed:()=>launchUrl(Uri.parse('$site/sovereign-admin'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new,color:gold),tooltip:'Open full Sovereign Desk dashboard')]),body:ListView(padding:const EdgeInsets.all(16),children:[
- Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(begin:Alignment.topLeft,end:Alignment.bottomRight,colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('SOVEREIGN DESK · PRIVATE WORKSPACE',style:TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900,letterSpacing:1.1)),const SizedBox(height:10),const Text('Sovereign Desk administration',style:TextStyle(fontSize:24,fontWeight:FontWeight.w900)),const SizedBox(height:6),Text('Signed in as '+(widget.member['fullName']??'Sovereign Desk administrator').toString(),style:const TextStyle(color:muted,fontSize:12)),const SizedBox(height:8),const Text('This workspace is separate from Monarch Codex financial administration.',style:TextStyle(color:muted,fontSize:12))])),
- const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
- const Text('WORKSPACE NAVIGATION',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:5),
- const Text('Open the dedicated Sovereign Desk tools. These links use the existing secured website workspace and do not grant Monarch Codex financial-admin permissions.',style:TextStyle(color:muted,fontSize:12,height:1.4)),const SizedBox(height:10),
- Wrap(spacing:8,runSpacing:8,children:[
- for(final item in <Map<String,dynamic>>[
- {'title':'Desk overview','route':'/sovereign-admin','icon':Icons.dashboard_outlined},
- {'title':'Trading signals','route':'/sovereign-admin/signals','icon':Icons.show_chart},
- {'title':'Guidance & learning','route':'/sovereign-admin/guidance','icon':Icons.school_outlined},
- {'title':'Access requests','route':'/sovereign-admin/access','icon':Icons.verified_user_outlined},
- {'title':'Signal access','route':'/sovereign-admin/signal-access','icon':Icons.key_outlined},
- {'title':'Member conversations','route':'/sovereign-admin/chat','icon':Icons.forum_outlined},
- {'title':'Announcements','route':'/sovereign-admin/announcements','icon':Icons.campaign_outlined},
- {'title':'Homepage events','route':'/sovereign-admin/events','icon':Icons.event_outlined},
- {'title':'Trade watchlist','route':'/sovereign-admin/watchlist','icon':Icons.bookmark_border},
- {'title':'Governance','route':'/sovereign-admin/governance','icon':Icons.gavel_outlined},
- {'title':'Activity log','route':'/sovereign-admin/activity','icon':Icons.history},
- {'title':'Live markets','route':'/market-movers.html','icon':Icons.public},
- ]) OutlinedButton.icon(onPressed:()=>openDeskSection(item['route'] as String),icon:Icon(item['icon'] as IconData,size:17),label:Text(item['title'] as String),style:OutlinedButton.styleFrom(foregroundColor:gold,side:const BorderSide(color:Color(0xFF6D5920)),padding:const EdgeInsets.symmetric(horizontal:12,vertical:12))),
- ]),
- ])),
- const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('PARTNER ROLE REQUEST',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Request Partner status for the company. Founder is reserved exclusively for the Monarch Codex Super Admin and is not available to other members. This request goes to Monarch Codex administrators and does not grant access automatically.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:12),TextField(controller:company,decoration:const InputDecoration(labelText:'Company / partner name')),const SizedBox(height:10),TextField(controller:message,maxLines:3,decoration:const InputDecoration(labelText:'Reason for request')),const SizedBox(height:12),if(error!=null)Message(text:error!,success:false),if(notice!=null)Message(text:notice!,success:true),FilledButton(onPressed:busy?null:requestPartner,style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,minimumSize:const Size.fromHeight(48)),child:Text(busy?'Submitting…':'Request Partner role'))])),
- const SizedBox(height:14),Container(padding:const EdgeInsets.all(16),decoration:mcCard(dark),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('SIGNALS & GUIDANCE',style:TextStyle(color:gold,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Open the dedicated Sovereign Desk dashboard to manage its signals and guidance. This does not open Monarch Codex financial administration.',style:TextStyle(color:muted,fontSize:12)),const SizedBox(height:10),FilledButton.icon(onPressed:()=>launchUrl(Uri.parse('$site/sovereign-admin'),mode:LaunchMode.externalApplication),icon:const Icon(Icons.open_in_new),label:const Text('Open Sovereign Desk dashboard'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink))])),
- const SizedBox(height:14),OutlinedButton.icon(onPressed:widget.signOut,icon:const Icon(Icons.logout),label:const Text('Sign out of Sovereign Desk'))])));}
+
+class _SovereignAdminShellState extends State<SovereignAdminShell> {
+  final company = TextEditingController(text: 'Sovereign Desk');
+  final message = TextEditingController(text: 'Request Partner role for the Sovereign Desk company.');
+  bool busy = false;
+  String? error, notice;
+  int selectedDestination = 0;
+
+  static const List<Map<String, dynamic>> deskDestinations = [
+    {'title': 'Overview', 'route': '/sovereign-admin', 'icon': Icons.dashboard_outlined},
+    {'title': 'Trading signals', 'route': '/sovereign-admin/signals', 'icon': Icons.show_chart},
+    {'title': 'Guidance & learning', 'route': '/sovereign-admin/guidance', 'icon': Icons.school_outlined},
+    {'title': 'Access requests', 'route': '/sovereign-admin/access', 'icon': Icons.verified_user_outlined},
+    {'title': 'Signal access', 'route': '/sovereign-admin/signal-access', 'icon': Icons.key_outlined},
+    {'title': 'Member conversations', 'route': '/sovereign-admin/chat', 'icon': Icons.forum_outlined},
+    {'title': 'Announcements', 'route': '/sovereign-admin/announcements', 'icon': Icons.campaign_outlined},
+    {'title': 'Homepage events', 'route': '/sovereign-admin/events', 'icon': Icons.event_outlined},
+    {'title': 'Trade watchlist', 'route': '/sovereign-admin/watchlist', 'icon': Icons.bookmark_border},
+    {'title': 'Governance', 'route': '/sovereign-admin/governance', 'icon': Icons.gavel_outlined},
+    {'title': 'Activity log', 'route': '/sovereign-admin/activity', 'icon': Icons.history},
+    {'title': 'Live markets', 'route': '/market-movers.html', 'icon': Icons.public},
+  ];
+
+  @override
+  void dispose() {
+    company.dispose();
+    message.dispose();
+    super.dispose();
+  }
+
+  Future<void> requestPartner() async {
+    setState(() => busy = true);
+    try {
+      await widget.api.requestSovereignPartner(companyName: company.text.trim(), message: message.text.trim());
+      if (mounted) setState(() => notice = 'Partner request submitted for review.');
+    } catch (e) {
+      if (mounted) setState(() => error = e is DioException && e.response?.data is Map
+          ? ((e.response!.data as Map)['message'] ?? 'Request failed').toString()
+          : e.toString());
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> openDeskSection(String route, {int? destination}) async {
+    if (destination != null && mounted) setState(() => selectedDestination = destination);
+    Navigator.of(context).maybePop();
+    try {
+      await _openAdminRoute(route);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open this workspace: ' + e.toString())),
+        );
+      }
+    }
+  }
+
+  void showMoreDestinations() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF101012) : Colors.white,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Text('SOVEREIGN DESK TOOLS', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+            ),
+            for (var i = 1; i < deskDestinations.length; i++)
+              ListTile(
+                leading: Icon(deskDestinations[i]['icon'] as IconData, color: gold),
+                title: Text(deskDestinations[i]['title'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  openDeskSection(deskDestinations[i]['route'] as String, destination: i);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _hero(bool dark) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(color: const Color(0xFF6D5920)),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF30250C), Color(0xFF151411), Color(0xFF101012)],
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Container(
+            width: 44, height: 44, padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(color: const Color(0xFF292319), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF6D5920))),
+            child: SvgPicture.asset('assets/images/monarch-codex-logo.svg'),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('SOVEREIGN DESK', style: TextStyle(color: gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.3))),
+        ]),
+        const SizedBox(height: 18),
+        const Text('Command centre', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w900, height: 1.1)),
+        const SizedBox(height: 8),
+        Text('Signed in as ' + (widget.member['fullName'] ?? 'Sovereign Desk administrator').toString(), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        const SizedBox(height: 12),
+        const Text('Signals, access and community operations in a workspace separate from Monarch Codex financial administration.', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.5)),
+      ],
+    ),
+  );
+
+  Widget _quickAction({required String title, required String subtitle, required IconData icon, required VoidCallback onTap}) => Card(
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(15),
+        child: Row(children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(color: gold.withValues(alpha: .12), borderRadius: BorderRadius.circular(13)),
+            child: Icon(icon, color: gold),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+            const SizedBox(height: 4),
+            Text(subtitle, style: const TextStyle(color: muted, fontSize: 11, height: 1.35)),
+          ])),
+          const Icon(Icons.chevron_right, color: gold),
+        ]),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) confirmAppExit(context);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: Builder(builder: (context) => IconButton(
+            tooltip: 'Open Sovereign Desk navigation',
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: const Icon(Icons.menu_rounded, color: gold),
+          )),
+          title: Row(children: [
+            SvgPicture.asset('assets/images/monarch-codex-logo.svg', width: 32, height: 32),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('SOVEREIGN DESK', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900))),
+          ]),
+          actions: [
+            IconButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage())),
+              icon: const Icon(Icons.system_update_alt, color: gold),
+              tooltip: 'Check for app updates',
+            ),
+            IconButton(onPressed: widget.toggleTheme, icon: const Icon(Icons.contrast, color: gold), tooltip: 'Toggle appearance'),
+          ],
+        ),
+        drawer: Drawer(
+          backgroundColor: dark ? const Color(0xFF10110F) : const Color(0xFFF6F4ED),
+          child: SafeArea(child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+              child: Row(children: [
+                Container(width: 46, height: 46, padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: const Color(0xFF292319), borderRadius: BorderRadius.circular(14)), child: SvgPicture.asset('assets/images/monarch-codex-logo.svg')),
+                const SizedBox(width: 12),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('MONARCH CODEX', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  SizedBox(height: 4),
+                  Text('SOVEREIGN DESK ADMIN', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .8)),
+                ])),
+              ]),
+            ),
+            const Divider(),
+            Expanded(child: ListView(padding: const EdgeInsets.symmetric(vertical: 8), children: [
+              for (var i = 0; i < deskDestinations.length; i++)
+                ListTile(
+                  selected: selectedDestination == i,
+                  selectedTileColor: gold.withValues(alpha: .12),
+                  leading: Icon(deskDestinations[i]['icon'] as IconData, color: selectedDestination == i ? gold : muted),
+                  title: Text(deskDestinations[i]['title'] as String, style: TextStyle(fontWeight: selectedDestination == i ? FontWeight.w900 : FontWeight.w600, color: selectedDestination == i ? gold : null)),
+                  trailing: const Icon(Icons.chevron_right, size: 18),
+                  onTap: () => openDeskSection(deskDestinations[i]['route'] as String, destination: i),
+                ),
+            ])),
+            const Divider(),
+            ListTile(leading: const Icon(Icons.contrast, color: gold), title: const Text('Appearance'), trailing: Text(widget.light ? 'Light' : 'Dark', style: const TextStyle(color: muted)), onTap: widget.toggleTheme),
+            ListTile(leading: const Icon(Icons.logout, color: Color(0xFFD8A29A)), title: const Text('Sign out', style: TextStyle(color: Color(0xFFD8A29A))), onTap: widget.signOut),
+          ])),
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            _hero(dark),
+            const SizedBox(height: 16),
+            Row(children: [
+              const Expanded(child: Text('WORKSPACE SHORTCUTS', style: TextStyle(color: gold, fontWeight: FontWeight.w900, letterSpacing: .8))),
+              TextButton.icon(onPressed: showMoreDestinations, icon: const Icon(Icons.grid_view_rounded, size: 17), label: const Text('All tools')),
+            ]),
+            _quickAction(
+              title: 'Manage trading signals',
+              subtitle: 'Publish signals, preserve revisions and record outcomes.',
+              icon: Icons.show_chart_rounded,
+              onTap: () => openDeskSection('/sovereign-admin/signals', destination: 1),
+            ),
+            _quickAction(
+              title: 'Review access requests',
+              subtitle: 'Review member access and signal subscription requests.',
+              icon: Icons.verified_user_outlined,
+              onTap: () => openDeskSection('/sovereign-admin/access', destination: 3),
+            ),
+            _quickAction(
+              title: 'Member conversations',
+              subtitle: 'Open member support and conversation management.',
+              icon: Icons.forum_outlined,
+              onTap: () => openDeskSection('/sovereign-admin/chat', destination: 5),
+            ),
+            _quickAction(
+              title: 'Announcements & events',
+              subtitle: 'Manage member updates, events and notices.',
+              icon: Icons.campaign_outlined,
+              onTap: () => openDeskSection('/sovereign-admin/announcements', destination: 6),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: mcCard(dark),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('PARTNER ROLE REQUEST', style: TextStyle(color: gold, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 6),
+                const Text('Request Partner status for the company. This request goes to Monarch Codex administrators and does not grant access automatically.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+                const SizedBox(height: 12),
+                TextField(controller: company, decoration: const InputDecoration(labelText: 'Company / partner name')),
+                const SizedBox(height: 10),
+                TextField(controller: message, maxLines: 3, decoration: const InputDecoration(labelText: 'Reason for request')),
+                const SizedBox(height: 12),
+                if (error != null) Message(text: error!, success: false),
+                if (notice != null) Message(text: notice!, success: true),
+                FilledButton(
+                  onPressed: busy ? null : requestPartner,
+                  style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)),
+                  child: Text(busy ? 'Submitting…' : 'Request Partner role'),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Security note: Sovereign Desk admin tools open in the secured website workspace today. Native in-app management requires dedicated authenticated API endpoints for each tool.',
+              style: TextStyle(color: muted, fontSize: 11, height: 1.45),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(onPressed: widget.signOut, icon: const Icon(Icons.logout), label: const Text('Sign out of Sovereign Desk')),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: selectedDestination == 0 ? 0 : selectedDestination == 1 ? 1 : selectedDestination == 3 ? 2 : selectedDestination == 5 ? 3 : 4,
+          backgroundColor: dark ? const Color(0xFF101012) : Colors.white,
+          indicatorColor: gold.withValues(alpha: .18),
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: (index) {
+            if (index == 0) {
+              setState(() => selectedDestination = 0);
+            } else if (index == 1) {
+              openDeskSection('/sovereign-admin/signals', destination: 1);
+            } else if (index == 2) {
+              openDeskSection('/sovereign-admin/access', destination: 3);
+            } else if (index == 3) {
+              openDeskSection('/sovereign-admin/chat', destination: 5);
+            } else {
+              showMoreDestinations();
+            }
+          },
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.dashboard_outlined), selectedIcon: Icon(Icons.dashboard, color: gold), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.show_chart), selectedIcon: Icon(Icons.show_chart, color: gold), label: 'Signals'),
+            NavigationDestination(icon: Icon(Icons.verified_user_outlined), selectedIcon: Icon(Icons.verified_user, color: gold), label: 'Access'),
+            NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum, color: gold), label: 'Members'),
+            NavigationDestination(icon: Icon(Icons.grid_view_rounded), selectedIcon: Icon(Icons.grid_view, color: gold), label: 'More'),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class KycStatusPage extends StatefulWidget {
