@@ -162,9 +162,10 @@ ThemeData makeTheme(bool dark) => ThemeData(
 );
 
 class WalletTransferPage extends StatefulWidget {
-  const WalletTransferPage({super.key, required this.api, required this.dark});
+  const WalletTransferPage({super.key, required this.api, required this.dark, required this.onDone});
   final MonarchApi api;
   final bool dark;
+  final VoidCallback onDone;
   @override State<WalletTransferPage> createState() => _WalletTransferPageState();
 }
 
@@ -248,6 +249,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
       if (!mounted) return;
       setState(() { success = '${result['message'] ?? 'Transfer completed.'} Reference: ${result['reference'] ?? ''}'; pendingKey = null; amountController.clear(); });
       await refreshBalances();
+      widget.onDone();
     } catch (e) {
       if (!mounted) return;
       setState(() { error = messageFrom(e); });
@@ -982,7 +984,7 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
-    if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark);
+    if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
