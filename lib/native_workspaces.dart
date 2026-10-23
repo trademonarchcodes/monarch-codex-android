@@ -135,7 +135,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
               'MEMBER FEEDBACK',
               style: TextStyle(
                 color: gold,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
                 letterSpacing: 1,
               ),
             ),
@@ -182,7 +182,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
           children: [
             Text(
               (item['title'] ?? 'Feedback').toString(),
-              style: const TextStyle(color: gold, fontWeight: FontWeight.w900),
+              style: const TextStyle(color: gold, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 5),
             Text(
@@ -192,7 +192,7 @@ class _AdminFeedbackPageState extends State<AdminFeedbackPage> {
             const SizedBox(height: 8),
             Text((item['description'] ?? '').toString()),
             const SizedBox(height: 8),
-            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w800)),
+            Text('Status: ' + status, style: const TextStyle(fontWeight: FontWeight.w700)),
             TextField(
               controller: controller,
               maxLines: 2,
@@ -1256,12 +1256,12 @@ class _AdminCooperativePageState extends State<AdminCooperativePage>{
     if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Cooperative verification queue unavailable.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('ONLINE COOPERATIVE · CONNECTION REVIEW',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('Check the member’s submitted registration name and email with the Cooperative administrator. Approve only after the registration is confirmed; reject with a clear reason if it cannot be verified. Never ask for passwords or OTPs.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       if(items.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('No pending connection requests.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
       ...items.map((x){final id=(x['id'] as num).toInt();final note=notes.putIfAbsent(id,()=>TextEditingController());return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text((x['memberName']??'Member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        Text((x['memberName']??'Member').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),
         const SizedBox(height:4),Text('Member email: ${x['memberEmail']??'—'}'),
         Text('Registered name: ${x['registeredName']??'—'}'),Text('Registered email: ${x['registeredEmail']??'—'}'),
         Text('Submitted: ${x['createdAt']??'—'}',style:const TextStyle(color:muted,fontSize:10)),
@@ -1301,13 +1301,13 @@ class _AdminPermissionsPageState extends State<AdminPermissionsPage>{
     final categories=(data['categories'] as List? ?? const []).map((x)=>x.toString()).toList();
     final permissions=(data['permissions'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('ADMIN ACCESS CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('ADMIN ACCESS CONTROL',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('Set access separately for each administrator and category. Green grants full access; Gold grants only the actions you select; Red blocks access. Only the Founder / Super Admin may change these permissions. Administrators cannot elevate their own access.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...admins.where((a)=>(a['role']??'').toString()!='super_admin').map((admin){
         final memberId=(admin['memberId'] as num).toInt();
         return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Text((admin['fullName']??admin['email']??'Administrator').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+          Text((admin['fullName']??admin['email']??'Administrator').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700)),
           Text((admin['role']??'').toString().replaceAll('_',' ').toUpperCase(),style:const TextStyle(color:muted,fontSize:10)),
           const SizedBox(height:8),
           ...categories.map((category){
@@ -1372,7 +1372,7 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
     if(s.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Social link management requires Super Admin access and the platform migration.'),const SizedBox(height:10),FilledButton(onPressed:reload,child:const Text('Retry'))]);
     final items=(s.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
     return ListView(padding:const EdgeInsets.all(15),children:[
-      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const Text('OFFICIAL SOCIAL LINKS',style:TextStyle(color:gold,fontWeight:FontWeight.w700,letterSpacing:1)),
       const SizedBox(height:6),const Text('These are the official links members can open from Monarch Codex. Use a valid HTTPS address and switch a link on only after testing it. Leave a platform blank or inactive to hide it. Founder personal contacts should remain separate unless deliberately published.',style:TextStyle(color:muted)),
       if(message!=null)Padding(padding:const EdgeInsets.all(8),child:Text(message!,style:const TextStyle(color:gold))),
       ...items.map((item){
@@ -1381,7 +1381,7 @@ class _AdminSocialLinksPageState extends State<AdminSocialLinksPage>{
         urls.putIfAbsent(key,()=>TextEditingController(text:(item['url']??'').toString()));
         active.putIfAbsent(key,()=>item['active']==true||item['active']==1);
         return Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),Switch(value:active[key]!,activeThumbColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
+          Row(children:[Expanded(child:Text(key.toUpperCase(),style:const TextStyle(color:gold,fontWeight:FontWeight.w700))),Switch(value:active[key]!,activeThumbColor:gold,onChanged:(v)=>setState(()=>active[key]=v),)]),
           TextField(controller:labels[key],decoration:const InputDecoration(labelText:'Public label',border:OutlineInputBorder())),
           const SizedBox(height:8),TextField(controller:urls[key],keyboardType:TextInputType.url,decoration:const InputDecoration(labelText:'HTTPS URL (blank hides the link)',border:OutlineInputBorder())),
           Align(alignment:Alignment.centerRight,child:FilledButton(onPressed:saving.contains(key)?null:()=>save(key),child:Text(saving.contains(key)?'Saving…':'Save')))
