@@ -41,12 +41,6 @@ String _workspaceError(Object error) {
   return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
 }
 
-Future<void> _openAdminRoute(String route) async {
-  final uri=Uri.parse('$site$route');
-  final opened=await launchUrl(uri,mode:LaunchMode.externalApplication);
-  if(!opened) throw Exception('Could not open the administrator review page.');
-}
-
 class AdminFeedbackPage extends StatefulWidget {
   const AdminFeedbackPage({super.key, required this.api, required this.dark});
   final MonarchApi api;
