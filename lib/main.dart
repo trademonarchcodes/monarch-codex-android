@@ -581,9 +581,22 @@ class _ShellState extends State<Shell> {
   Map<String, dynamic>? data;
   static const names = ['Overview', 'Wallet', 'Invest', 'Market', 'Community', 'Profile'];
   static const icons = [Icons.grid_view_rounded, Icons.account_balance_wallet_rounded, Icons.trending_up_rounded, Icons.show_chart_rounded, Icons.groups_rounded, Icons.person_rounded];
-  Timer? presenceTimer;
-  @override void initState() { super.initState(); refresh(); widget.api.presenceHeartbeat().catchError((_){}); presenceTimer=Timer.periodic(const Duration(seconds:45),(_)=>widget.api.presenceHeartbeat().catchError((_){})); }
-  @override void dispose(){presenceTimer?.cancel();super.dispose();}
+  Timer? presenceTimer, notificationTimer;
+  int unreadNotifications = 0;
+  @override void initState() { super.initState(); refresh(); refreshNotificationBadge(); widget.api.presenceHeartbeat().catchError((_){}); presenceTimer=Timer.periodic(const Duration(seconds:45),(_)=>widget.api.presenceHeartbeat().catchError((_){})); notificationTimer=Timer.periodic(const Duration(seconds:30),(_)=>refreshNotificationBadge()); }
+  @override void dispose(){presenceTimer?.cancel();notificationTimer?.cancel();super.dispose();}
+  Future<void> refreshNotificationBadge() async {
+    try {
+      int count = 0;
+      final role = (widget.member['adminRole'] ?? '').toString().trim();
+      final isAdmin = widget.member['isAdmin'] == true || role.isNotEmpty;
+      if (isAdmin) {
+        try { final response = await widget.api.dio.get('/api/admin/notifications/summary', options: Options(headers: {'Cache-Control':'no-cache'})); count = ((response.data as Map)['count'] as num?)?.toInt() ?? 0; }
+        catch (_) { final data = await widget.api.notifications(); count = (data['unreadCount'] as num?)?.toInt() ?? 0; }
+      } else { final data = await widget.api.notifications(); count = (data['unreadCount'] as num?)?.toInt() ?? 0; }
+      if (mounted && count != unreadNotifications) setState(() => unreadNotifications = count.clamp(0, 9999));
+    } catch (_) { /* Keep the last known badge if the connection is temporarily unavailable. */ }
+  }
   Future<void> refresh() async {
     setState(() { loading = true; error = null; });
     try { final result = await widget.api.overview(); if (mounted) setState(() { data = result; loading = false; }); }
@@ -613,7 +626,7 @@ class _ShellState extends State<Shell> {
             Row(children: [Expanded(child: Text((widget.member['uid'] ?? 'MONARCH').toString(), style: const TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900))), IconButton(visualDensity: VisualDensity.compact, tooltip: 'Copy Monarch UID', onPressed: () { Clipboard.setData(ClipboardData(text: (widget.member['uid'] ?? '').toString())); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Monarch UID copied'))); }, icon: const Icon(Icons.copy, size: 14, color: gold))]),
           ])),
           IconButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const AppUpdaterPage())), tooltip: 'Check for app updates', icon: const Icon(Icons.system_update_alt_rounded, color: gold)),
-          IconButton(onPressed: () => page('Notifications'), icon: const Icon(Icons.notifications_none_rounded, color: gold)),
+          IconButton(onPressed: () { page('Notifications'); refreshNotificationBadge(); }, tooltip: unreadNotifications > 0 ? '$unreadNotifications unread notifications' : 'Notifications', icon: Stack(clipBehavior: Clip.none, children: [const Icon(Icons.notifications_none_rounded, color: gold), if (unreadNotifications > 0) Positioned(right: -7, top: -6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), constraints: const BoxConstraints(minWidth: 16, minHeight: 16), decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(10), border: Border.all(color: ink, width: 1.5)), child: Text(unreadNotifications > 99 ? '99+' : '$unreadNotifications', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900))))])),
         ])),
         Expanded(child: special != null ? specialPage(special!, dark) : tab == 0 ? overviewPage(dark) : tab == 1 ? walletPage(dark) : tab == 2 ? InvestmentsPage(api: widget.api, dark: dark) : tab == 5 ? profilePage(dark) : tab == 3 ? LiveMarketsPage(api: widget.api, dark: dark) : tab == 4 ? CommunityPage(api: widget.api, dark: dark) : featurePage(names[tab], 'Market information', icons[tab], 'Market information is temporarily unavailable.', dark)),
         if (special == null) bottomNav(dark),
