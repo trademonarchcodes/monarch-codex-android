@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:monarch_codex/main.dart';
 import 'package:monarch_codex/app_updater.dart';
@@ -253,10 +254,60 @@ class AdminShell extends StatefulWidget {
 class _AdminShellState extends State<AdminShell>{
   late Future<Map<String,dynamic>> data;
   int selected=0;
+  int unreadNotifications=0;
+  bool updateAvailable=false;
   bool drawerBusy=false;
+  Timer? indicatorTimer;
   final GlobalKey<ScaffoldState> scaffoldKey=GlobalKey<ScaffoldState>();
-  @override void initState(){super.initState();data=widget.api.adminOverview();}
+  @override void initState(){
+    super.initState();
+    data=widget.api.adminOverview();
+    _refreshIndicators();
+    indicatorTimer=Timer.periodic(const Duration(seconds:60),(_)=>_refreshIndicators());
+  }
+  @override void dispose(){indicatorTimer?.cancel();super.dispose();}
   void reload()=>setState(()=>data=widget.api.adminOverview());
+  bool _newerVersion(String candidate,String installed){
+    List<int> parts(String value){final p=value.split('+');final v=p.first.split('.').map((x)=>int.tryParse(x)??0).toList();while(v.length<3){v.add(0);}v.add(p.length>1?int.tryParse(p[1])??0:0);return v;}
+    final a=parts(candidate),b=parts(installed);
+    for(var i=0;i<4;i++){if(a[i]!=b[i])return a[i]>b[i];}
+    return false;
+  }
+  Future<void> _refreshIndicators() async {
+    try{
+      final result=await widget.api.notifications();
+      final items=(result['items'] as List? ?? const []).whereType<Map>().toList();
+      final unread=items.where((item)=>item['readAt']==null).length;
+      if(mounted)setState(()=>unreadNotifications=unread);
+    }catch(_){}
+    try{
+      final info=await PackageInfo.fromPlatform();
+      final response=await Dio(BaseOptions(connectTimeout:const Duration(seconds:10),receiveTimeout:const Duration(seconds:15),headers:const {'Accept':'application/json'})).get<dynamic>('https://monarchcodex.online/api/mobile/app-update/latest');
+      if(response.data is! Map)return;
+      final release=Map<String,dynamic>.from(response.data as Map);
+      final version=(release['version']??'').toString();
+      final newer=_newerVersion(version,info.version+'+'+info.buildNumber);
+      final newlyAvailable=newer&&!updateAvailable;
+      if(mounted)setState(()=>updateAvailable=newer);
+      if(newlyAvailable&&mounted)WidgetsBinding.instance.addPostFrameCallback((_){
+        if(!mounted)return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:Text('Monarch Codex update '+version+' is available.'),
+          action:SnackBarAction(label:'UPDATE',onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const AppUpdaterPage()))),
+          duration:const Duration(seconds:8),
+        ));
+      });
+    }catch(_){}
+  }
+  Widget _indicatorBadge(Widget child,int count,{double size=16})=>Stack(clipBehavior:Clip.none,children:[
+    child,
+    if(count>0)Positioned(right:-5,top:-5,child:Container(
+      constraints:BoxConstraints(minWidth:size,minHeight:size),
+      padding:const EdgeInsets.symmetric(horizontal:4,vertical:1),
+      decoration:BoxDecoration(color:const Color(0xFFE5484D),borderRadius:BorderRadius.circular(99),border:Border.all(color:ink,width:1)),
+      child:Text(count>99?'99+':'$count',textAlign:TextAlign.center,style:const TextStyle(color:Colors.white,fontSize:8,height:1.2,fontWeight:FontWeight.w900)),
+    )),
+  ]);
 
   Future<void> openSection(int index) async {
     if(index==0){scaffoldKey.currentState?.closeDrawer();setState(()=>selected=0);reload();return;}
@@ -275,6 +326,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==10)page=AdminCooperativePage(api:widget.api,dark:dark);
     if(index==11)page=AdminSocialLinksPage(api:widget.api,dark:dark);
     if(index==12)page=AdminFeedbackPage(api:widget.api,dark:dark);
+    if(index==14)page=NotificationsPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -288,7 +340,20 @@ class _AdminShellState extends State<AdminShell>{
         dense:true,shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(12)),
         leading:Icon(icon,color:active?gold:muted,size:21),
         title:Text(title,style:TextStyle(color:active?gold:null,fontSize:12,fontWeight:active?FontWeight.w900:FontWeight.w600)),
-        trailing:active?Container(width:3,height:22,decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(4))):null,
+        trailing:FutureBuilder<Map<String,dynamic>>(future:data,builder:(context,snapshot){
+          final d=snapshot.data??<String,dynamic>{};
+          final count=index==1?number(d['pendingKyc']).round():index==2?number(d['pendingDeposits']).round():index==3?number(d['pendingWithdrawals']).round():index==14?unreadNotifications:0;
+          if(count==0&&!active)return const SizedBox.shrink();
+          return Row(mainAxisSize:MainAxisSize.min,children:[
+            if(count>0)Container(
+              constraints:const BoxConstraints(minWidth:18,minHeight:18),
+              padding:const EdgeInsets.symmetric(horizontal:5,vertical:2),
+              decoration:BoxDecoration(color:const Color(0xFFE5484D),borderRadius:BorderRadius.circular(99)),
+              child:Text(count>99?'99+':'$count',style:const TextStyle(color:Colors.white,fontSize:9,fontWeight:FontWeight.w900)),
+            ),
+            if(active)Container(margin:const EdgeInsets.only(left:6),width:3,height:22,decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(4))),
+          ]);
+        }),
         onTap:()=>openSection(index),
       ),
     ));
@@ -341,6 +406,7 @@ class _AdminShellState extends State<AdminShell>{
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(10,Icons.link_outlined,'Online Cooperative'),
             if((widget.member['adminRole']??'').toString()=='super_admin') _navItem(11,Icons.public,'Social links'),
             if(['super_admin','main_admin'].contains((widget.member['adminRole']??'').toString())) _navItem(12,Icons.feedback_outlined,'Member feedback'),
+            _navItem(14,Icons.notifications_none_rounded,'Notifications'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -350,7 +416,7 @@ class _AdminShellState extends State<AdminShell>{
       ),
       appBar:AppBar(
         title:Row(children:[SvgPicture.asset('assets/images/monarch-codex-logo.svg',width:32,height:32),const SizedBox(width:8),const Expanded(child:Text('ADMIN CONTROL CENTRE',style:TextStyle(fontSize:12,fontWeight:FontWeight.w900)))]),
-        actions:[IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const AppUpdaterPage())),icon:const Icon(Icons.system_update_alt,color:gold),tooltip:'Check for app updates'),IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold),tooltip:'Toggle appearance'),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold),tooltip:'Refresh overview')],
+        actions:[IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>const AppUpdaterPage())),icon:_indicatorBadge(const Icon(Icons.system_update_alt,color:gold),updateAvailable?1:0),tooltip:updateAvailable?'Update available':'Check for app updates'),IconButton(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>NotificationsPage(api:widget.api,dark:dark))),icon:_indicatorBadge(const Icon(Icons.notifications_none_rounded,color:gold),unreadNotifications),tooltip:unreadNotifications>0?'$unreadNotifications unread notifications':'Notifications'),IconButton(onPressed:widget.toggleTheme,icon:const Icon(Icons.contrast,color:gold),tooltip:'Toggle appearance'),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold),tooltip:'Refresh overview')],
       ),
       body:FutureBuilder<Map<String,dynamic>>(future:data,builder:(context,snap){
         if(snap.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
