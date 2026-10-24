@@ -617,9 +617,9 @@ class _AcademyPageState extends State<AcademyPage> {
       Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         const Text('MONARCH CODEX ACADEMY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11,letterSpacing:1.2)),const SizedBox(height:10),
         const Text('Learn. Practice. Build your kingdom.',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:Colors.white)),const SizedBox(height:8),
-        const Text('Finish the current video before moving forward. Every replay of a completed video costs $2.',style:TextStyle(color:Colors.white70,height:1.5)),const SizedBox(height:12),
-        Text(full?'FULL ACADEMY ACCESS ACTIVE':'FULL ACADEMY ACCESS · $10',style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
-        if(!full)Padding(padding:const EdgeInsets.only(top:10),child:FilledButton(onPressed:busy.contains(-1)?null:()=>act(-1,()=>widget.api.purchaseAcademyAccess()),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(busy.contains(-1)?'Processing…':'Unlock full Academy · $10')))
+        const Text('Finish the current video before moving forward. Every replay of a completed video costs \$2.',style:TextStyle(color:Colors.white70,height:1.5)),const SizedBox(height:12),
+        Text(full?'FULL ACADEMY ACCESS ACTIVE':'FULL ACADEMY ACCESS · \$10',style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        if(!full)Padding(padding:const EdgeInsets.only(top:10),child:FilledButton(onPressed:busy.contains(-1)?null:()=>act(-1,()=>widget.api.purchaseAcademyAccess()),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(busy.contains(-1)?'Processing…':'Unlock full Academy · \$10')))
       ])),
       if(message!=null)Padding(padding:const EdgeInsets.only(top:10),child:Message(text:message!,success:success)),
       if(lessons.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Lessons are being prepared.',style:TextStyle(color:muted))),
@@ -627,9 +627,9 @@ class _AcademyPageState extends State<AcademyPage> {
         return Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:widget.dark?const Color(0xFF393326):const Color(0xFFE0D7BC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Row(children:[Container(width:36,height:36,alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xFF30250C),borderRadius:BorderRadius.circular(10)),child:Text((l['order']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),const SizedBox(width:10),Expanded(child:Text((l['title']??'Lesson').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16))),if(done)const Icon(Icons.check_circle,color:Color(0xFF4CAF80))]),
           if((l['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(l['description'].toString(),style:const TextStyle(color:muted))),
-          const SizedBox(height:8),Text(done?(fee?'Previous video · $2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
+          const SizedBox(height:8),Text(done?(fee?'Previous video · \$2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
           const SizedBox(height:9),Wrap(spacing:8,runSpacing:8,children:[
-            if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay $2 to replay')),
+            if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
             if(can&&(!done||ready))OutlinedButton.icon(onPressed:wait?null:()=>act(id,()=>widget.api.watchAcademyLesson(id),watch:true),icon:const Icon(Icons.play_arrow),label:Text(wait?'Opening…':'Watch video')),
             if(can&&!done&&opened.contains(id))FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.completeAcademyLesson(id),complete:true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Mark video finished'))
           ])
@@ -1040,7 +1040,7 @@ class _ShellState extends State<Shell> {
       tile('Withdraw', 'Request a payout to a saved account after KYC approval.', Icons.south_west, dark, () => page('Withdraw')),
       tile('Transactions', 'View recorded activity and request statuses.', Icons.receipt_long, dark, () => page('Transactions')),
       tile('Wallet Transfer', 'Send funds securely to another member using their Monarch UID.', Icons.swap_horiz_rounded, dark, () => page('Wallet Transfer')),
-      tile('Monarch Codex Academy', 'Continue lessons, unlock full access, or pay $2 to replay a previous video.', Icons.school_outlined, dark, () => page('Academy')),
+      tile('Monarch Codex Academy', 'Continue lessons, unlock full access, or pay \$2 to replay a previous video.', Icons.school_outlined, dark, () => page('Academy')),
     ]);
   }
 
