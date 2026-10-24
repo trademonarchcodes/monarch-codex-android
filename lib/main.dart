@@ -272,7 +272,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
       Row(children: [
         Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('NGN available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text('₦${ngn.toStringAsFixed(2)}', style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
         const SizedBox(width: 9),
-        Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('USD available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text('\
+        Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('USD available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text(r'$' + usd.toStringAsFixed(2), style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
       ]),
       Card(color: cardColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: borderColor)), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         TextField(controller: uidController, textCapitalization: TextCapitalization.characters, textInputAction: TextInputAction.done, onSubmitted: (_) => lookupRecipient(), decoration: decoration('Recipient Monarch UID', 'MONARCH123456')),
