@@ -56,6 +56,12 @@ class MonarchApi {
       Map<String,dynamic>.from((await dio.post('investments/$packageId/purchase',data:{'idempotencyKey':idempotencyKey})).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
+  Future<Map<String,dynamic>> academy() async => Map<String,dynamic>.from((await dio.get('academy')).data as Map);
+  Future<Map<String,dynamic>> purchaseAcademyAccess() async => Map<String,dynamic>.from((await dio.post('academy/access/purchase')).data as Map);
+  Future<Map<String,dynamic>> replayAcademyLesson({required int lessonId,required String idempotencyKey}) async => Map<String,dynamic>.from((await dio.post('academy/lessons/$lessonId/replay',data:{'idempotencyKey':idempotencyKey})).data as Map);
+  Future<Map<String,dynamic>> watchAcademyLesson(int lessonId) async => Map<String,dynamic>.from((await dio.post('academy/lessons/$lessonId/watch')).data as Map);
+  Future<Map<String,dynamic>> completeAcademyLesson(int lessonId) async => Map<String,dynamic>.from((await dio.post('academy/lessons/$lessonId/complete')).data as Map);
+
   Future<void> logout() async { await dio.post('auth/logout'); }
   Future<Map<String, dynamic>> walletBalances() async => Map<String, dynamic>.from((await dio.get('wallet/balances')).data as Map);
   Future<Map<String, dynamic>> walletRecipient(String uid) async => Map<String, dynamic>.from((await dio.get('wallet/recipient/${Uri.encodeComponent(uid)}')).data as Map);
@@ -555,7 +561,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
               if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
               const SizedBox(height: 8),
               Text('Service fee (1%): '+money(p['currency'],fee),style:const TextStyle(color:muted,fontSize:12)),
-              Text('Total before any currency conversion: '+money(p['currency'],price+fee),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+              Text('Total wallet debit before currency conversion: '+money(p['currency'],price+fee),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: purchasing ? null : () => buy(p),
@@ -578,6 +584,142 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
       ]));
     },
   );
+}
+
+
+class AcademyPage extends StatefulWidget {
+  const AcademyPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<AcademyPage> createState() => _AcademyPageState();
+}
+class _AcademyPageState extends State<AcademyPage> {
+  late Future<Map<String,dynamic>> future;
+  final Set<int> opened = <int>{};
+  final Set<int> busy = <int>{};
+  String? message;
+  bool success = true;
+  @override void initState(){super.initState();future=widget.api.academy();}
+  void reload(){setState(()=>future=widget.api.academy());}
+  String academyKey(){final r=math.Random.secure();final b=List<int>.generate(16,(_)=>r.nextInt(256));b[6]=(b[6]&0x0f)|0x40;b[8]=(b[8]&0x3f)|0x80;final h=b.map((v)=>v.toRadixString(16).padLeft(2,'0')).join();return h.substring(0,8)+'-'+h.substring(8,12)+'-'+h.substring(12,16)+'-'+h.substring(16,20)+'-'+h.substring(20);}
+
+  Future<void> act(int id,Future<Map<String,dynamic>> Function() action,{bool watch=false,bool complete=false})async{
+    if(busy.contains(id))return;setState(()=>busy.add(id));
+    try{final r=await action();if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
+      if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
+    }catch(e){if(mounted)setState(() { message=e.toString(); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
+    if(snap.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
+    if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Monarch Codex Academy',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),Message(text:'Academy could not load. Check your connection and retry.',success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final d=snap.data??<String,dynamic>{};final full=d['fullAccess']==true;final lessons=(d['lessons'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+    return RefreshIndicator(color:gold,onRefresh:()async{reload();},child:ListView(padding:const EdgeInsets.all(15),children:[
+      Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(22),border:Border.all(color:const Color(0xFF6D5920)),gradient:const LinearGradient(colors:[Color(0xFF30250C),Color(0xFF151411),Color(0xFF101012)])),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        const Text('MONARCH CODEX ACADEMY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11,letterSpacing:1.2)),const SizedBox(height:10),
+        const Text('Learn. Practice. Build your kingdom.',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900,color:Colors.white)),const SizedBox(height:8),
+        const Text('Finish the current video before moving forward. Every replay of a completed video costs \$2.',style:TextStyle(color:Colors.white70,height:1.5)),const SizedBox(height:12),
+        Text(full?'FULL ACADEMY ACCESS ACTIVE':'FULL ACADEMY ACCESS · \$10',style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+        if(!full)Padding(padding:const EdgeInsets.only(top:10),child:FilledButton(onPressed:busy.contains(-1)?null:()=>act(-1,()=>widget.api.purchaseAcademyAccess()),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(busy.contains(-1)?'Processing…':'Unlock full Academy · \$10')))
+      ])),
+      if(message!=null)Padding(padding:const EdgeInsets.only(top:10),child:Message(text:message!,success:success)),
+      if(lessons.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Lessons are being prepared.',style:TextStyle(color:muted))),
+      ...lessons.map((l){final id=(l['id'] as num).toInt();final done=l['completed']==true,can=l['canOpen']==true,fee=l['requiresReplayFee']==true,ready=l['replayReady']==true,wait=busy.contains(id);
+        return Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:widget.dark?const Color(0xFF393326):const Color(0xFFE0D7BC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Row(children:[Container(width:36,height:36,alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xFF30250C),borderRadius:BorderRadius.circular(10)),child:Text((l['order']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),const SizedBox(width:10),Expanded(child:Text((l['title']??'Lesson').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16))),if(done)const Icon(Icons.check_circle,color:Color(0xFF4CAF80))]),
+          if((l['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(l['description'].toString(),style:const TextStyle(color:muted))),
+          const SizedBox(height:8),Text(done?(fee?'Previous video · \$2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
+          const SizedBox(height:9),Wrap(spacing:8,runSpacing:8,children:[
+            if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
+            if(can&&(!done||ready))OutlinedButton.icon(onPressed:wait?null:()=>act(id,()=>widget.api.watchAcademyLesson(id),watch:true),icon:const Icon(Icons.play_arrow),label:Text(wait?'Opening…':'Watch video')),
+            if(can&&!done&&opened.contains(id))FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.completeAcademyLesson(id),complete:true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Mark video finished'))
+          ])
+        ]));
+      })
+    ]));
+  });
+}
+
+class SovereignRequestPage extends StatefulWidget {
+  const SovereignRequestPage({super.key, required this.dark, required this.uid, required this.initialType});
+  final bool dark;
+  final String uid;
+  final String initialType;
+  @override State<SovereignRequestPage> createState() => _SovereignRequestPageState();
+}
+
+class _SovereignRequestPageState extends State<SovereignRequestPage> {
+  late String kind;
+  final details = TextEditingController();
+  bool sending = false;
+
+  @override void initState() { super.initState(); kind = widget.initialType; }
+  @override void dispose() { details.dispose(); super.dispose(); }
+
+  Future<void> sendRequest() async {
+    if (sending) return;
+    setState(() => sending = true);
+    final isFree = kind == 'Free Signals';
+    final subject = isFree ? 'Free Signals Access Request' : 'Sovereign Desk Services Request';
+    final body = 'Monarch Codex UID: ${widget.uid.isEmpty ? 'Not available' : widget.uid}\nRequest type: $kind\n\nMember message:\n${details.text.trim().isEmpty ? 'Please advise me on eligibility and next steps.' : details.text.trim()}\n\nPlease confirm eligibility, any applicable access requirements, and the request status.';
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'support@monarchcodex.online',
+      queryParameters: {'subject': 'Monarch Codex — $subject', 'body': body},
+    );
+    try {
+      final opened = await launchUrl(uri);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(opened ? 'Your email app is opening. Send the message there to submit your request.' : 'Could not open an email app. Please contact support@monarchcodex.online.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open an email app. Please contact support@monarchcodex.online.')));
+    } finally { if (mounted) setState(() => sending = false); }
+  }
+
+  @override Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final isFree = kind == 'Free Signals';
+    final title = isFree ? 'FREE SIGNALS' : 'SOVEREIGN DESK';
+    final description = isFree
+      ? 'Request a review for free signals access. Eligibility and any referral reward must be confirmed by the team before access is granted.'
+      : 'Request Sovereign Desk services, signal access, mentorship, or trading guidance. Any paid access or approval requirements will be confirmed by the team.';
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: gold.withValues(alpha:.55))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: gold.withValues(alpha:.15), borderRadius: BorderRadius.circular(14)), child: Icon(isFree ? Icons.campaign_outlined : Icons.support_agent_rounded, color: gold, size: 28)),
+        const SizedBox(height: 14),
+        Text(title, style: const TextStyle(color: gold, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: .5)),
+        const SizedBox(height: 8),
+        Text(description, style: const TextStyle(fontSize: 13, height: 1.5, color: muted)),
+        const SizedBox(height: 14),
+        Text('YOUR MONARCH UID', style: TextStyle(fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w900, color: dark ? muted : Colors.black54)),
+        const SizedBox(height: 4),
+        SelectableText(widget.uid.isEmpty ? 'UID will be included if available' : widget.uid, style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+      ])),
+      const SizedBox(height: 18),
+      const Text('CHOOSE A REQUEST', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _requestChoice('Free Signals', Icons.campaign_outlined, dark)),
+        const SizedBox(width: 10),
+        Expanded(child: _requestChoice('Sovereign Desk', Icons.support_agent_rounded, dark)),
+      ]),
+      const SizedBox(height: 18),
+      const Text('MESSAGE TO THE TEAM (OPTIONAL)', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      TextField(controller: details, maxLines: 4, maxLength: 1000, decoration: InputDecoration(hintText: 'Tell us what access or service you are requesting…', filled: true, fillColor: dark ? panel : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: gold.withValues(alpha:.3))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: gold.withValues(alpha:.25))))),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: sending ? null : sendRequest, icon: const Icon(Icons.send_rounded), label: Text(sending ? 'Opening…' : 'Send request to the team'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, padding: const EdgeInsets.symmetric(vertical: 15)))),
+      const SizedBox(height: 12),
+      const Text('Submitting a request does not guarantee approval or profits. Trading involves risk. Your email app must send the message for the request to reach support.', style: TextStyle(color: muted, fontSize: 11, height: 1.5)),
+    ]);
+  }
+
+  Widget _requestChoice(String value, IconData icon, bool dark) {
+    final selected = kind == value;
+    return InkWell(onTap: () => setState(() => kind = value), borderRadius: BorderRadius.circular(14), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? gold.withValues(alpha:.14) : (dark ? panel : Colors.white), borderRadius: BorderRadius.circular(14), border: Border.all(color: selected ? gold : (dark ? Colors.white12 : Colors.black12))), child: Column(children: [
+      Icon(icon, color: selected ? gold : muted, size: 24),
+      const SizedBox(height: 7),
+      Text(value, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: selected ? gold : (dark ? Colors.white : ink))),
+    ])));
+  }
 }
 
 class CommunityPage extends StatefulWidget {
@@ -963,6 +1105,9 @@ class _ShellState extends State<Shell> {
         quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
         quick('Social Links', Icons.public, () => page('Social Links'), dark),
         quick('Feedback', Icons.feedback_outlined, () => page('Feedback & Suggestions'), dark),
+        quick('Academy', Icons.school_outlined, () => page('Academy'), dark),
+        quick('Free Signals', Icons.campaign_outlined, () => page('Free Signals'), dark),
+        quick('Sovereign Desk', Icons.support_agent_rounded, () => page('Sovereign Desk'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -980,6 +1125,7 @@ class _ShellState extends State<Shell> {
       tile('Withdraw', 'Request a payout to a saved account after KYC approval.', Icons.south_west, dark, () => page('Withdraw')),
       tile('Transactions', 'View recorded activity and request statuses.', Icons.receipt_long, dark, () => page('Transactions')),
       tile('Wallet Transfer', 'Send funds securely to another member using their Monarch UID.', Icons.swap_horiz_rounded, dark, () => page('Wallet Transfer')),
+      tile('Monarch Codex Academy', 'Continue lessons, unlock full access, or pay \$2 to replay a previous video.', Icons.school_outlined, dark, () => page('Academy')),
     ]);
   }
 
@@ -990,6 +1136,8 @@ class _ShellState extends State<Shell> {
 
   Widget specialPage(String p, bool dark) {
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
+    if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
+    if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
