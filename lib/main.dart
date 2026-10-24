@@ -1078,7 +1078,7 @@ class _ShellState extends State<Shell> {
 
   Widget balanceCard(double ngn, double usd, double rate) {
     final canConvert = rate > 0;
-    final shownValue = balanceInUsd ? (canConvert ? usd + ngn / rate : usd) : (canConvert ? ngn + usd * rate : ngn);
+    final shownValue = balanceInUsd ? usd : ngn; // API values are already combined totals; do not convert them a second time.
     final shownCurrency = balanceInUsd ? 'USD' : 'NGN';
     final shownSymbol = balanceInUsd ? 'USD ' : '₦';
     return Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(
