@@ -639,6 +639,89 @@ class _AcademyPageState extends State<AcademyPage> {
   });
 }
 
+class SovereignRequestPage extends StatefulWidget {
+  const SovereignRequestPage({super.key, required this.dark, required this.uid, required this.initialType});
+  final bool dark;
+  final String uid;
+  final String initialType;
+  @override State<SovereignRequestPage> createState() => _SovereignRequestPageState();
+}
+
+class _SovereignRequestPageState extends State<SovereignRequestPage> {
+  late String kind;
+  final details = TextEditingController();
+  bool sending = false;
+
+  @override void initState() { super.initState(); kind = widget.initialType; }
+  @override void dispose() { details.dispose(); super.dispose(); }
+
+  Future<void> sendRequest() async {
+    if (sending) return;
+    setState(() => sending = true);
+    final isFree = kind == 'Free Signals';
+    final subject = isFree ? 'Free Signals Access Request' : 'Sovereign Desk Services Request';
+    final body = 'Monarch Codex UID: ${widget.uid.isEmpty ? 'Not available' : widget.uid}\nRequest type: $kind\n\nMember message:\n${details.text.trim().isEmpty ? 'Please advise me on eligibility and next steps.' : details.text.trim()}\n\nPlease confirm eligibility, any applicable access requirements, and the request status.';
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'support@monarchcodex.online',
+      queryParameters: {'subject': 'Monarch Codex — $subject', 'body': body},
+    );
+    try {
+      final opened = await launchUrl(uri);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(opened ? 'Your email app is opening. Send the message there to submit your request.' : 'Could not open an email app. Please contact support@monarchcodex.online.')));
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open an email app. Please contact support@monarchcodex.online.')));
+    } finally { if (mounted) setState(() => sending = false); }
+  }
+
+  @override Widget build(BuildContext context) {
+    final dark = widget.dark;
+    final isFree = kind == 'Free Signals';
+    final title = isFree ? 'FREE SIGNALS' : 'SOVEREIGN DESK';
+    final description = isFree
+      ? 'Request a review for free signals access. Eligibility and any referral reward must be confirmed by the team before access is granted.'
+      : 'Request Sovereign Desk services, signal access, mentorship, or trading guidance. Any paid access or approval requirements will be confirmed by the team.';
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: gold.withValues(alpha:.55))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.all(11), decoration: BoxDecoration(color: gold.withValues(alpha:.15), borderRadius: BorderRadius.circular(14)), child: Icon(isFree ? Icons.campaign_outlined : Icons.support_agent_rounded, color: gold, size: 28)),
+        const SizedBox(height: 14),
+        Text(title, style: const TextStyle(color: gold, fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: .5)),
+        const SizedBox(height: 8),
+        Text(description, style: const TextStyle(fontSize: 13, height: 1.5, color: muted)),
+        const SizedBox(height: 14),
+        Text('YOUR MONARCH UID', style: TextStyle(fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.w900, color: dark ? muted : Colors.black54)),
+        const SizedBox(height: 4),
+        SelectableText(widget.uid.isEmpty ? 'UID will be included if available' : widget.uid, style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+      ])),
+      const SizedBox(height: 18),
+      const Text('CHOOSE A REQUEST', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      Row(children: [
+        Expanded(child: _requestChoice('Free Signals', Icons.campaign_outlined, dark)),
+        const SizedBox(width: 10),
+        Expanded(child: _requestChoice('Sovereign Desk', Icons.support_agent_rounded, dark)),
+      ]),
+      const SizedBox(height: 18),
+      const Text('MESSAGE TO THE TEAM (OPTIONAL)', style: TextStyle(fontSize: 11, letterSpacing: 1, fontWeight: FontWeight.w900)),
+      const SizedBox(height: 8),
+      TextField(controller: details, maxLines: 4, maxLength: 1000, decoration: InputDecoration(hintText: 'Tell us what access or service you are requesting…', filled: true, fillColor: dark ? panel : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: gold.withValues(alpha:.3))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: gold.withValues(alpha:.25))))),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: sending ? null : sendRequest, icon: const Icon(Icons.send_rounded), label: Text(sending ? 'Opening…' : 'Send request to the team'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, padding: const EdgeInsets.symmetric(vertical: 15)))),
+      const SizedBox(height: 12),
+      const Text('Submitting a request does not guarantee approval or profits. Trading involves risk. Your email app must send the message for the request to reach support.', style: TextStyle(color: muted, fontSize: 11, height: 1.5)),
+    ]);
+  }
+
+  Widget _requestChoice(String value, IconData icon, bool dark) {
+    final selected = kind == value;
+    return InkWell(onTap: () => setState(() => kind = value), borderRadius: BorderRadius.circular(14), child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: selected ? gold.withValues(alpha:.14) : (dark ? panel : Colors.white), borderRadius: BorderRadius.circular(14), border: Border.all(color: selected ? gold : (dark ? Colors.white12 : Colors.black12))), child: Column(children: [
+      Icon(icon, color: selected ? gold : muted, size: 24),
+      const SizedBox(height: 7),
+      Text(value, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: selected ? gold : (dark ? Colors.white : ink))),
+    ])));
+  }
+}
+
 class CommunityPage extends StatefulWidget {
   const CommunityPage({super.key,required this.api,required this.dark});
   final MonarchApi api; final bool dark;
@@ -1023,6 +1106,8 @@ class _ShellState extends State<Shell> {
         quick('Social Links', Icons.public, () => page('Social Links'), dark),
         quick('Feedback', Icons.feedback_outlined, () => page('Feedback & Suggestions'), dark),
         quick('Academy', Icons.school_outlined, () => page('Academy'), dark),
+        quick('Free Signals', Icons.campaign_outlined, () => page('Free Signals'), dark),
+        quick('Sovereign Desk', Icons.support_agent_rounded, () => page('Sovereign Desk'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -1052,6 +1137,7 @@ class _ShellState extends State<Shell> {
   Widget specialPage(String p, bool dark) {
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
+    if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
