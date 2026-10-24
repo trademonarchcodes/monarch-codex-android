@@ -1318,29 +1318,6 @@ class Message extends StatelessWidget {
     child: Text(text, style: TextStyle(color: success ? const Color(0xFFB9F3CE) : const Color(0xFFFFC7C1), fontSize: 12, height: 1.45)),
   );
 }
- + usd.toStringAsFixed(2), style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
-      ]),
-      Card(color: cardColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18), side: BorderSide(color: borderColor)), child: Padding(padding: const EdgeInsets.all(17), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        TextField(controller: uidController, textCapitalization: TextCapitalization.characters, textInputAction: TextInputAction.done, onSubmitted: (_) => lookupRecipient(), decoration: decoration('Recipient Monarch UID', 'MONARCH123456')),
-        const SizedBox(height: 8),
-        if (looking) const LinearProgressIndicator(color: gold, minHeight: 2),
-        if (recipient != null) Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [const Icon(Icons.verified_user_outlined, color: Colors.green), const SizedBox(width: 8), Expanded(child: Text('${recipient!['name']} · ${recipient!['uid']}', style: TextStyle(color: textColor, fontWeight: FontWeight.w800)))])),
-        OutlinedButton.icon(onPressed: looking ? null : lookupRecipient, icon: const Icon(Icons.person_search_outlined), label: const Text('Verify recipient')),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: currency, decoration: decoration('Wallet currency', 'Choose currency'), items: const [DropdownMenuItem(value: 'NGN', child: Text('Nigerian naira (NGN)')), DropdownMenuItem(value: 'USD', child: Text('US dollars (USD)'))], onChanged: busy ? null : (v) => setState(() => currency = v ?? 'NGN')),
-        const SizedBox(height: 12),
-        TextField(controller: amountController, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: decoration('Amount to send', '0.00')),
-        const SizedBox(height: 14),
-        if (error != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(error!, style: const TextStyle(color: Color(0xFFFF8F80), fontSize: 12))),
-        if (success != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(success!, style: const TextStyle(color: Color(0xFF38B878), fontSize: 12))),
-        FilledButton.icon(onPressed: busy ? null : sendTransfer, icon: busy ? const SizedBox(width: 17,height: 17,child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.swap_horiz_rounded), label: Text(busy ? 'Processing securely…' : 'Confirm and send'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, padding: const EdgeInsets.symmetric(vertical: 14))),
-        const SizedBox(height: 8),
-        Text('Transfers must use the same currency on both wallets. Check the UID carefully and never share your password or one-time code.', style: TextStyle(color: muted, fontSize: 11, height: 1.45)),
-      ]))),
-    ]);
-  }
-}
-
 class MonarchApp extends StatefulWidget {
   const MonarchApp({super.key, required this.api});
   final MonarchApi api;
