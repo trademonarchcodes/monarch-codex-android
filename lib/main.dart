@@ -544,7 +544,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
           final terms = (p['terms'] ?? '').toString().trim();
           final description = (p['description'] ?? '').toString().trim();
           final price=double.tryParse((p['price']??'0').toString())??0;
-          final fee=price*0.01;
+          final fee=price*0.10;
           return Card(color: widget.dark ? panel : Colors.white, child: ExpansionTile(
             leading: const Icon(Icons.workspace_premium, color: gold),
             title: Text((p['name'] ?? 'Investment package').toString(), style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -554,8 +554,8 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
               if (description.isNotEmpty) Align(alignment: Alignment.centerLeft, child: Text(description)),
               if (terms.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Align(alignment: Alignment.centerLeft, child: Text('Terms: ' + terms, style: const TextStyle(color: muted)))),
               const SizedBox(height: 8),
-              Text('Service fee (1%): '+money(p['currency'],fee),style:const TextStyle(color:muted,fontSize:12)),
-              Text('Total before any currency conversion: '+money(p['currency'],price+fee),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
+              Text('Service fee (10%): '+money(p['currency'],fee),style:const TextStyle(color:muted,fontSize:12)),
+              Text('Total wallet debit before currency conversion: '+money(p['currency'],price+fee),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),
               const SizedBox(height: 12),
               SizedBox(width: double.infinity, child: FilledButton.icon(
                 onPressed: purchasing ? null : () => buy(p),
