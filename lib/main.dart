@@ -267,7 +267,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
     return ListView(padding: const EdgeInsets.all(15), children: [
       const Text('Send funds to another Monarch', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
       const SizedBox(height: 6),
-      const Text('Transfer wallet funds using a member’s Monarch UID. The recipient and amount are verified before the transfer is submitted.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+      const Text('Transfer funds using a member’s Monarch UID. Your combined NGN and USD balances can cover the transfer, with conversion at the configured rate.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
       const SizedBox(height: 16),
       Row(children: [
         Expanded(child: Card(color: cardColor, child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [const Text('NGN available', style: TextStyle(color: muted, fontSize: 11)), const SizedBox(height: 7), Text('₦${ngn.toStringAsFixed(2)}', style: TextStyle(color: gold, fontSize: 17, fontWeight: FontWeight.w900))])))),
@@ -289,7 +289,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
         if (success != null) Padding(padding: const EdgeInsets.only(bottom: 10), child: Text(success!, style: const TextStyle(color: Color(0xFF38B878), fontSize: 12))),
         FilledButton.icon(onPressed: busy ? null : sendTransfer, icon: busy ? const SizedBox(width: 17,height: 17,child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.swap_horiz_rounded), label: Text(busy ? 'Processing securely…' : 'Confirm and send'), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, padding: const EdgeInsets.symmetric(vertical: 14))),
         const SizedBox(height: 8),
-        Text('Transfers must use the same currency on both wallets. Check the UID carefully and never share your password or one-time code.', style: TextStyle(color: muted, fontSize: 11, height: 1.45)),
+        Text('Transfers can use your combined NGN and USD funds. The amount is sent in the selected currency using the configured conversion rate. Check the UID carefully and never share your password or one-time code.', style: TextStyle(color: muted, fontSize: 11, height: 1.45)),
       ]))),
     ]);
   }
