@@ -604,8 +604,8 @@ class _AcademyPageState extends State<AcademyPage> {
   Future<void> act(int id,Future<Map<String,dynamic>> Function() action,{bool watch=false,bool complete=false})async{
     if(busy.contains(id))return;setState(()=>busy.add(id));
     try{final r=await action();if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
-      if(mounted){setState(()=>{message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(),success=true});reload();}
-    }catch(e){if(mounted)setState(()=>{message=e.toString(),success=false});}finally{if(mounted)setState(()=>busy.remove(id));}
+      if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
+    }catch(e){if(mounted)setState(() { message=e.toString(); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
   }
   @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
     if(snap.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
