@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:monarch_codex/main.dart';
+import 'package:monarch_codex/main.dart' hide Card, TextStyle;
 import 'package:monarch_codex/app_updater.dart';
 
 Future<void> confirmAppExit(BuildContext context) async {
