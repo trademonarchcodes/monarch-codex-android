@@ -1430,6 +1430,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   String errorText(Object e){if(e is DioException&&e.response?.data is Map){final d=e.response!.data as Map;return (d['message']??d['error']??'Request failed').toString();}return 'Could not complete the request. Check your connection and administrator permissions.';}
   List<Map<String,dynamic>> list(dynamic v)=>v is List?v.whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList():<Map<String,dynamic>>[];
   Future<void> update(String path,Map<String,dynamic> body)async{
+    if(busy)return;
     setState(()=>busy=true);
     try{await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message='Saved to the shared database.';future=_load();});}
     catch(e){if(mounted)setState(()=>message=errorText(e));}
@@ -1657,7 +1658,7 @@ class _AdminAcademyPageState extends State<AdminAcademyPage>{
     appBar:AppBar(title:const Text('ACADEMY MANAGEMENT',style:TextStyle(fontSize:13,fontWeight:FontWeight.w900)),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
     body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
       if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
-      if(snapshot.hasError)return Center(child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.lock_outline,color:gold,size:42),const SizedBox(height:12),const Text('Academy management could not be loaded.'),const SizedBox(height:8),Text(snapshot.error.toString(),textAlign:TextAlign.center,style:const TextStyle(color:muted,fontSize:11)),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Retry'))])));
+      if(snapshot.hasError)return Center(child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.lock_outline,color:gold,size:42),const SizedBox(height:12),const Text('Academy management could not be loaded.'),const SizedBox(height:8),Text(apiErrorMessage(snapshot.error!,fallback:'The server could not load Academy data. Check the connection and retry.'),textAlign:TextAlign.center,style:const TextStyle(color:muted,fontSize:13,height:1.35)),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Retry'))])));
       final data=snapshot.data??<String,dynamic>{};
       final categories=(data['categories'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
       final lessons=(data['lessons'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
