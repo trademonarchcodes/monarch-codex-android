@@ -8,7 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 const _gold = Color(0xFFF3CF3C);
-const _releaseApi = 'https://monarchcodex.online/api/mobile/app-update/latest';
+const _releaseApi = 'https://monarchcodex.online/api/mobile/app-update/migration/latest';
 
 class AppUpdaterPage extends StatefulWidget {
   const AppUpdaterPage({super.key});
