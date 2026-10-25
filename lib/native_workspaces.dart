@@ -325,6 +325,7 @@ class _AdminShellState extends State<AdminShell>{
      if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(index==16)page=CommunityPage(api:widget.api,dark:dark);
     if(index==17)page=AdminAcademyPage(api:widget.api,dark:dark);
+    if(index==18){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignAdminShell(api:widget.api,member:widget.member,signOut:widget.signOut,light:widget.light,toggleTheme:widget.toggleTheme)));if(mounted)setState(()=>selected=0);return;}
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -408,6 +409,7 @@ class _AdminShellState extends State<AdminShell>{
              _navItem(15,Icons.support_agent,'Help & Support'),
              _navItem(16,Icons.forum_outlined,'Community'),
             _navItem(17,Icons.school_outlined,'Academy management'),
+            if((widget.member['adminRole']??'').toString().trim().toLowerCase().replaceAll(' ','_')=='super_admin') _navItem(18,Icons.support_agent_rounded,'Sovereign Desk admin'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
