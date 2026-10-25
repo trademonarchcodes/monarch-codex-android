@@ -20,7 +20,7 @@ jobs:
           cache: true
       - run: flutter --version
       # Generate Android scaffolding, then install the official Monarch Codex launcher artwork.
-      - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+      - run: flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex.migration .
       # Release builds need INTERNET in the main manifest; Flutter's generated debug manifest alone is not enough.
       - name: Enable network access in release APK
         run: |
@@ -90,12 +90,12 @@ jobs:
         if: github.ref == 'refs/heads/main' && env.ANDROID_SIGNING_CONFIGURED == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-apk
-          name: Monarch Codex Android — Latest APK
+          tag_name: migration-apk
+          name: Monarch Codex Android — Migration APK
           body: |
             Version: ${{ steps.app_version.outputs.version }}
 
-            Automatically updated release containing the latest successfully built Monarch Codex Android APK. The SHA-256 checksum is published beside the APK.
+            New Monarch Codex Android app identity for safe side-by-side migration because the previous signing key is unavailable. Install alongside the legacy app; sign in using your existing Monarch Codex account. Verify the SHA-256 checksum before installation.
           prerelease: true
           generate_release_notes: false
           files: |
