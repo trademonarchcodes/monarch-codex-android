@@ -30,6 +30,45 @@ Future<void> main() async {
   runApp(MonarchApp(api: MonarchApi(jar)));
 }
 
+String apiErrorMessage(Object error, {String fallback = 'The request could not be completed. Please try again.'}) {
+  if (error is! DioException) {
+    final text = error.toString().replaceFirst('Exception: ', '').trim();
+    return text.isEmpty ? fallback : text;
+  }
+  final response = error.response;
+  final status = response?.statusCode;
+  final data = response?.data;
+  if (data is Map) {
+    for (final key in const ['message', 'error_description', 'error']) {
+      final value = data[key];
+      if (value is String && value.trim().isNotEmpty &&
+          !const ['internal_server_error', 'request_failed'].contains(value.trim().toLowerCase())) {
+        return value.trim();
+      }
+    }
+    final details = data['details'] ?? data['errors'];
+    if (details is List && details.isNotEmpty) {
+      final first = details.first;
+      if (first is Map && first['message'] is String) return first['message'].toString();
+      if (first is String && first.trim().isNotEmpty) return first.trim();
+    }
+  }
+  if (status == 400 || status == 422) return 'Some information is missing or invalid. Review the fields and try again.';
+  if (status == 401) return 'Your session has expired. Sign in again, then retry.';
+  if (status == 403) return 'Your account does not have permission for this action. Contact the Super Admin if you believe this is incorrect.';
+  if (status == 404) return 'This service was not found. The website backend may need to be updated.';
+  if (status == 429) return 'Too many requests were sent. Wait a moment before retrying.';
+  if (status != null && status >= 500) return 'The server could not complete this request (HTTP $status). Please retry; if it continues, the backend logs need checking.';
+  if (error.type == DioExceptionType.connectionTimeout ||
+      error.type == DioExceptionType.sendTimeout ||
+      error.type == DioExceptionType.receiveTimeout) return 'The server took too long to respond. Check your connection and retry.';
+  if (error.type == DioExceptionType.connectionError) return 'Could not connect to monarchcodex.online. Check your internet connection.';
+  if (error.type == DioExceptionType.cancel) return 'This request was cancelled. Retry if you still need it.';
+  if (error.type == DioExceptionType.badResponse) return 'The server returned an unexpected response. Please retry.';
+  if (error.type == DioExceptionType.badCertificate) return 'A secure connection could not be established. Please try again later.';
+  return fallback;
+}
+
 class MonarchApi {
   MonarchApi(CookieJar jar) : dio = Dio(BaseOptions(
     baseUrl: '$apiRoot/',
@@ -38,6 +77,33 @@ class MonarchApi {
     headers: {'Accept': 'application/json'},
   )) {
     dio.interceptors.add(CookieManager(jar));
+    // Log only request metadata; never log headers, cookies, tokens or request bodies.
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) {
+        final requestId = 'mc-${DateTime.now().microsecondsSinceEpoch}';
+        options.extra['monarchRequestId'] = requestId;
+        options.headers['X-Request-ID'] = requestId;
+        if (kDebugMode) {
+          debugPrint('API ${options.method} ${options.uri.path} requestId=$requestId');
+        }
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        if (kDebugMode) {
+          debugPrint('API ${response.requestOptions.method} ${response.requestOptions.uri.path} '
+              'status=${response.statusCode} requestId=${response.requestOptions.extra['monarchRequestId']}');
+        }
+        handler.next(response);
+      },
+      onError: (error, handler) {
+        if (kDebugMode) {
+          debugPrint('API ${error.requestOptions.method} ${error.requestOptions.uri.path} '
+              'status=${error.response?.statusCode ?? 'network'} '
+              'type=${error.type.name} requestId=${error.requestOptions.extra['monarchRequestId']}');
+        }
+        handler.next(error);
+      },
+    ));
   }
   final Dio dio;
   Future<Map<String, dynamic>?> me() async {
@@ -778,22 +844,22 @@ class _CommunityPageState extends State<CommunityPage>{
     try{await widget.api.deleteCommunityPost(id);if(mounted){reload();ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Your post was deleted.')));}}
     catch(_){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Could not delete the post. Please try again.')));}
   }
-  Future<void> publish()async{final body=composer.text.trim();if(body.isEmpty)return;setState((){sending=true;message=null;});try{final r=await widget.api.createCommunityPostWithImage(body,image);composer.clear();if(mounted)setState((){sending=false;image=null;message=(r['message']??'Post published.').toString();success=true;});reload();}catch(_){if(mounted)setState((){sending=false;message='Could not publish your post. Check your connection and image format.';success=false;});}}
+  Future<void> publish()async{if(sending)return;final body=composer.text.trim();if(body.isEmpty){setState((){message='Write something before publishing.';success=false;});return;}setState((){sending=true;message=null;});try{final r=await widget.api.createCommunityPostWithImage(body,image);composer.clear();if(mounted)setState((){sending=false;image=null;message=(r['message']??'Post published.').toString();success=true;});reload();}catch(e){if(mounted)setState((){sending=false;message=apiErrorMessage(e,fallback:'Could not publish your post. Check the connection and image format.');success=false;});}}
   String presenceLabel(Map<String,dynamic> p){if(p['authorOnline']==true||p['authorOnline']==1)return 'Online now';final raw=p['authorLastSeen'];if(raw==null)return 'Status unavailable';final dt=DateTime.tryParse(raw.toString());if(dt==null)return 'Last seen recently';final d=DateTime.now().difference(dt.toLocal());if(d.inMinutes<1)return 'Last seen just now';if(d.inMinutes<60)return 'Last seen '+d.inMinutes.toString()+'m ago';if(d.inHours<24)return 'Last seen '+d.inHours.toString()+'h ago';return 'Last seen '+d.inDays.toString()+'d ago';}
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(15),children:[
-    const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
-    const SizedBox(height:5),const Text('Share updates, ask questions, and connect with members. Images are optional.',style:TextStyle(color:muted)),
+    const Text('THE MONARCH COMMUNITY',style:TextStyle(color:gold,fontSize:18,fontWeight:FontWeight.w900,letterSpacing:0.6)),
+    const SizedBox(height:6),const Text('Share updates, ask questions, and connect with members. Images are optional.',style:TextStyle(color:muted,fontSize:13,height:1.35)),
     const SizedBox(height:14),Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-      TextField(controller:composer,maxLines:4,maxLength:5000,decoration:const InputDecoration(hintText:'What would you like to share?',border:OutlineInputBorder())),
-      if(image!=null)Text('Attached: '+image!.name,style:const TextStyle(color:muted,fontSize:11)),
-      const SizedBox(height:8),Row(children:[Expanded(child:OutlinedButton.icon(onPressed:sending?null:chooseImage,icon:const Icon(Icons.image_outlined),label:const Text('Add image (optional)'))),const SizedBox(width:8),FilledButton.icon(onPressed:sending?null:publish,icon:const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))]),
+      TextField(controller:composer,maxLines:4,maxLength:5000,style:const TextStyle(fontSize:14,height:1.35),decoration:const InputDecoration(hintText:'What would you like to share?',hintMaxLines:2,border:OutlineInputBorder(),contentPadding:EdgeInsets.symmetric(horizontal:12,vertical:12))),
+      if(image!=null)Padding(padding:const EdgeInsets.only(top:4),child:Text('Attached: '+image!.name,style:const TextStyle(color:muted,fontSize:11),maxLines:2,overflow:TextOverflow.ellipsis)),
+      const SizedBox(height:8),Wrap(spacing:8,runSpacing:8,children:[OutlinedButton.icon(onPressed:sending?null:chooseImage,icon:const Icon(Icons.image_outlined),label:const Text('Add image')),FilledButton.icon(onPressed:sending?null:publish,icon:sending?const SizedBox(width:16,height:16,child:CircularProgressIndicator(strokeWidth:2,color:ink)):const Icon(Icons.send),label:Text(sending?'Posting…':'Publish'))]),
       if(message!=null)Padding(padding:const EdgeInsets.only(top:8),child:Text(message!,style:TextStyle(color:success?Colors.green:Colors.redAccent,fontSize:12))),
       TextButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>FeedbackPage(api:widget.api,dark:widget.dark))),icon:const Icon(Icons.feedback_outlined),label:const Text('Feedback & Suggestions'))
     ]))),
     const SizedBox(height:14),Row(children:[const Expanded(child:Text('COMMUNITY FEED',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1))),IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
     FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
       if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
-      if(snapshot.hasError)return const Padding(padding:EdgeInsets.all(12),child:Text('The community feed is not available yet. Please try again later.',style:TextStyle(color:muted)));
+      if(snapshot.hasError)return Padding(padding:const EdgeInsets.all(12),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(apiErrorMessage(snapshot.error!,fallback:'The community feed is not available. Check your connection and retry.'),style:const TextStyle(color:muted,fontSize:13,height:1.35)),const SizedBox(height:8),Align(alignment:Alignment.centerLeft,child:OutlinedButton.icon(onPressed:reload,icon:const Icon(Icons.refresh),label:const Text('Retry')))]));
       final posts=(snapshot.data?['items'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
       if(posts.isEmpty)return const Padding(padding:EdgeInsets.all(22),child:Text('No posts yet. Be the first to start a conversation.',textAlign:TextAlign.center,style:TextStyle(color:muted)));
       return Column(children:posts.map((p)=>Card(color:widget.dark?panel:Colors.white,child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
