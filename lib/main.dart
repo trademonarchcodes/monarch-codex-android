@@ -71,6 +71,7 @@ class MonarchApi {
   Future<Map<String, dynamic>> depositOptions() async => Map<String, dynamic>.from((await dio.get('deposit/options')).data as Map);
   Future<Map<String, dynamic>> withdrawalOptions() async => Map<String, dynamic>.from((await dio.get('withdrawal/options')).data as Map);
   Future<Map<String, dynamic>> adminOverview() async => Map<String, dynamic>.from((await dio.get('admin/overview')).data as Map);
+  Future<Map<String, dynamic>> adminInvestmentReport() async => Map<String, dynamic>.from((await dio.get('admin/investments/report')).data as Map);
   Future<Map<String,dynamic>> adminMembers({String q=''}) async => Map<String,dynamic>.from((await dio.get('admin/members',queryParameters:{'q':q})).data as Map);
   Future<Map<String,dynamic>> adminMember(int id) async => Map<String,dynamic>.from((await dio.get('admin/members/$id')).data as Map);
   Future<void> setMemberBlocked(int id,bool blocked) async { await dio.post('admin/members/$id/status',data:{'blocked':blocked}); }
