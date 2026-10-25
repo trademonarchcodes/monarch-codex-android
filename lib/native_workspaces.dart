@@ -1664,6 +1664,7 @@ class _AdminAcademyPageState extends State<AdminAcademyPage>{
       final lessons=(data['lessons'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
       return RefreshIndicator(onRefresh:()async{reload();},child:ListView(padding:const EdgeInsets.all(14),children:[
         if(message!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:messageOk?const Color(0x2238B878):const Color(0x22E5484D),borderRadius:BorderRadius.circular(12)),child:Text(message!,style:TextStyle(color:messageOk?const Color(0xFF38B878):const Color(0xFFFF8F80),fontSize:12))),
+        const Padding(padding:EdgeInsets.only(bottom:12),child:Text('Lesson order is enforced independently inside each category. An unfinished lesson in another category will not block this category.',style:TextStyle(color:muted,fontSize:12,height:1.4))),
         Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           const Text('ACADEMY ACCESS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
           const SizedBox(height:5),const Text('Grant full access without charging the member wallet.'),
