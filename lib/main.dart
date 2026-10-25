@@ -15,7 +15,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:monarch_codex/native_workspaces.dart';
 import 'package:monarch_codex/app_updater.dart';
-import 'website_portal.dart';
 
 const gold = Color(0xFFF3CF3C);
 const ink = Color(0xFF09090B);
@@ -1130,7 +1129,6 @@ class _ShellState extends State<Shell> {
         quick('Academy', Icons.school_outlined, () => page('Academy'), dark),
         quick('Free Signals', Icons.campaign_outlined, () => page('Free Signals'), dark),
         quick('Sovereign Desk', Icons.support_agent_rounded, () => page('Sovereign Desk'), dark),
-        quick('All Website Sections', Icons.apps_rounded, () => page('Website Portal'), dark),
       ]),
       if (loading) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator(color: gold))),
       if (error != null) Message(text: error!, success: false),
@@ -1158,7 +1156,6 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
-    if (p == 'Website Portal') return WebsitePortalPage(dark: dark);
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
     if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
@@ -1184,7 +1181,6 @@ class _ShellState extends State<Shell> {
       tile('Sovereign Desk signals & access', 'Ask about signal access, membership eligibility, or trading guidance. Signals and market activity carry risk and do not guarantee profits.', Icons.insights_outlined, dark, () => launchUrl(Uri.parse('mailto:support@monarchcodex.online?subject=Monarch%20Codex%20Sovereign%20Desk%20Support'))),
       tile('Community & social links', 'Open the member community or official Monarch Codex channels.', Icons.groups_outlined, dark, () => page(null, 4)),
       tile('Report a problem / send feedback', 'Submit a bug report, suggestion, or improvement and track its status.', Icons.feedback_outlined, dark, () => page('Feedback & Suggestions')),
-      tile('All website sections', 'Open the complete Monarch Codex website inside the app, including sections not yet available as native screens.', Icons.apps_rounded, dark, () => page('Website Portal')),
       tile('Visit website in browser', 'Open Monarch Codex online in your external browser.', Icons.open_in_new, dark, () => openSite('/')),
     ]);
     if (p == 'Password Recovery') return PasswordRecoveryPage(dark: dark);
