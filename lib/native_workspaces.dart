@@ -1562,8 +1562,8 @@ class _AdminAcademyPageState extends State<AdminAcademyPage>{
   Future<void> run(Future<dynamic> Function() action) async {
     if(busy)return;
     setState(()=>busy=true);
-    try{final r=await action();if(mounted){setState(()=>message=(r is Map?(r['message']??'Saved successfully.').toString():'Saved successfully.');messageOk=true;}reload();}
-    catch(e){if(mounted)setState(()=>{message=e.toString(),messageOk=false});}
+    try{final r=await action();if(mounted){setState((){message=(r is Map?(r['message']??'Saved successfully.').toString():'Saved successfully.');messageOk=true;});reload();}}
+    catch(e){if(mounted)setState((){message=e.toString();messageOk=false;});}
     finally{if(mounted)setState(()=>busy=false);}
   }
   Future<void> createCategory() async {
