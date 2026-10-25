@@ -1,54 +1,50 @@
+
 name: Generate Permanent Android Signing Key
 
 on:
-workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
-contents: read
+  contents: read
 
 jobs:
-generate:
-runs-on: ubuntu-latest
-steps:
-- name: Generate permanent signing key
-shell: bash
-run: |
-set -euo pipefail
-STORE_PASSWORD="$(openssl rand -hex 24)"
-KEY_ALIAS="monarchcodex"
-KEY_PASSWORD="$STORE_PASSWORD"
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate permanent signing key
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      keytool -genkeypair \
-        -keystore monarch-codex-release.jks \
-        -storetype JKS \
-        -storepass "$STORE_PASSWORD" \
-        -keypass "$KEY_PASSWORD" \
-        -alias "$KEY_ALIAS" \
-        -keyalg RSA -keysize 3072 -validity 10000 \
-        -dname "CN=Monarch Codex, OU=Android, O=Monarch Codex, L=Port Harcourt, ST=Rivers, C=NG"
+          STORE_PASSWORD="$(openssl rand -hex 24)"
+          KEY_ALIAS="monarchcodex"
+          KEY_PASSWORD="$STORE_PASSWORD"
 
-      base64 -w 0 monarch-codex-release.jks > ANDROID_KEYSTORE_BASE64.txt
+          keytool -genkeypair \
+            -keystore monarch-codex-release.jks \
+            -storetype JKS \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA \
+            -keysize 3072 \
+            -validity 10000 \
+            -dname "CN=Monarch Codex, OU=Android, O=Monarch Codex, L=Port Harcourt, ST=Rivers, C=NG"
 
-      {
-        echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
-        echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
-        echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
-      } > signing-credentials.txt
+          base64 -w 0 monarch-codex-release.jks > ANDROID_KEYSTORE_BASE64.txt
 
-      {
-        echo "## Signing key generated"
-        echo ""
-        echo "Download the private artifact immediately. It contains the keystore and credentials."
-        echo "Keep it private. Do not share it. Save an encrypted backup."
-        echo "The artifact expires after one day."
-      } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "ANDROID_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD"
+            echo "ANDROID_KEY_ALIAS=$KEY_ALIAS"
+          } > signing-credentials.txt
 
-  - name: Upload private signing files
-    uses: actions/upload-artifact@v4
-    with:
-      name: monarch-codex-signing-key
-      path: |
-        monarch-codex-release.jks
-        ANDROID_KEYSTORE_BASE64.txt
-        signing-credentials.txt
-      retention-days: 1
+      - name: Upload private signing files
+        uses: actions/upload-artifact@v4
+        with:
+          name: monarch-codex-signing-key
+          path: |
+            monarch-codex-release.jks
+            ANDROID_KEYSTORE_BASE64.txt
+            signing-credentials.txt
+          retention-days: 1
