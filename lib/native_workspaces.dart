@@ -305,6 +305,7 @@ class _AdminShellState extends State<AdminShell>{
   ]);
 
   Future<void> openSection(int index) async {
+    if(index==18){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignAdminShell(api:widget.api,member:widget.member,signOut:widget.signOut,light:widget.light,toggleTheme:widget.toggleTheme,onReturnToSuperAdmin:()=>Navigator.of(context).pop())));if(mounted)setState(()=>selected=0);return;}
     if(index==0){scaffoldKey.currentState?.closeDrawer();setState(()=>selected=0);reload();return;}
     if(index==4){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
      if(index==13){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>AdminMembersPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
@@ -406,6 +407,7 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(14,Icons.notifications_none_rounded,'Notifications'),
              _navItem(15,Icons.support_agent,'Help & Support'),
              _navItem(16,Icons.forum_outlined,'Community'),
+             if((widget.member['adminRole']??'').toString().trim().toLowerCase().replaceAll(' ','_')=='super_admin') _navItem(18,Icons.support_agent_rounded,'Sovereign Desk admin'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -702,12 +704,13 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
 }
 
 class SovereignAdminShell extends StatefulWidget {
-  const SovereignAdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
+  const SovereignAdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme, this.onReturnToSuperAdmin});
   final MonarchApi api;
   final Map<String, dynamic> member;
   final Future<void> Function() signOut;
   final bool light;
   final VoidCallback toggleTheme;
+  final VoidCallback? onReturnToSuperAdmin;
   @override
   State<SovereignAdminShell> createState() => _SovereignAdminShellState();
 }
@@ -878,11 +881,13 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
       child: Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          leading: Builder(builder: (context) => IconButton(
-            tooltip: 'Open Sovereign Desk navigation',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            icon: const Icon(Icons.menu_rounded, color: gold),
-          )),
+          leading: widget.onReturnToSuperAdmin != null
+              ? IconButton(tooltip: 'Return to Super Admin', onPressed: widget.onReturnToSuperAdmin, icon: const Icon(Icons.arrow_back_rounded, color: gold))
+              : Builder(builder: (context) => IconButton(
+                  tooltip: 'Open Sovereign Desk navigation',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu_rounded, color: gold),
+                )),
           title: Row(children: [
             SvgPicture.asset('assets/images/monarch-codex-logo.svg', width: 32, height: 32),
             const SizedBox(width: 8),
