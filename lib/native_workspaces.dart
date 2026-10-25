@@ -324,6 +324,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==14)page=NotificationsPage(api:widget.api,dark:dark);
      if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(index==16)page=CommunityPage(api:widget.api,dark:dark);
+    if(index==17)page=AdminAcademyPage(api:widget.api,dark:dark);
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -406,6 +407,7 @@ class _AdminShellState extends State<AdminShell>{
             _navItem(14,Icons.notifications_none_rounded,'Notifications'),
              _navItem(15,Icons.support_agent,'Help & Support'),
              _navItem(16,Icons.forum_outlined,'Community'),
+            _navItem(17,Icons.school_outlined,'Academy management'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
           ListTile(leading:const Icon(Icons.contrast,color:gold),title:const Text('Appearance',style:TextStyle(fontSize:12)),trailing:Text(widget.light?'Light':'Dark',style:const TextStyle(color:muted,fontSize:11)),onTap:(){scaffoldKey.currentState?.closeDrawer();widget.toggleTheme();}),
@@ -1538,6 +1540,139 @@ class _SovereignDeskChatPageState extends State<SovereignDeskChatPage>{
           const SizedBox(width:8),IconButton.filled(onPressed:busy?null:send,style:IconButton.styleFrom(backgroundColor:gold,foregroundColor:ink),icon:const Icon(Icons.send_rounded)),
         ]))),
       ]);
+    }),
+  );
+}
+
+
+
+class AdminAcademyPage extends StatefulWidget {
+  const AdminAcademyPage({super.key,required this.api,required this.dark});
+  final MonarchApi api;
+  final bool dark;
+  @override State<AdminAcademyPage> createState()=>_AdminAcademyPageState();
+}
+class _AdminAcademyPageState extends State<AdminAcademyPage>{
+  late Future<Map<String,dynamic>> future;
+  bool busy=false;
+  String? message;
+  bool messageOk=true;
+  @override void initState(){super.initState();future=widget.api.adminAcademy();}
+  void reload(){if(mounted)setState(()=>future=widget.api.adminAcademy());}
+  Future<void> run(Future<dynamic> Function() action) async {
+    if(busy)return;
+    setState(()=>busy=true);
+    try{final r=await action();if(mounted){setState(()=>message=(r is Map?(r['message']??'Saved successfully.').toString():'Saved successfully.');messageOk=true;}reload();}
+    catch(e){if(mounted)setState(()=>{message=e.toString(),messageOk=false});}
+    finally{if(mounted)setState(()=>busy=false);}
+  }
+  Future<void> createCategory() async {
+    final name=TextEditingController(),description=TextEditingController(),order=TextEditingController(text:'0');
+    final form=GlobalKey<FormState>();
+    final value=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Create Academy category'),
+      content:Form(key:form,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextFormField(controller:name,decoration:const InputDecoration(labelText:'Category name'),validator:(v)=>(v==null||v.trim().isEmpty)?'Enter a name':null),
+        TextFormField(controller:description,decoration:const InputDecoration(labelText:'Description')),
+        TextFormField(controller:order,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Display order'),validator:(v)=>(int.tryParse(v??'')==null||(int.tryParse(v??'')??-1)<0)?'Enter a valid order':null),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:(){if(form.currentState!.validate())Navigator.pop(ctx,{'name':name.text.trim(),'description':description.text.trim(),'sortOrder':order.text});},style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Create'))],
+    ));
+    name.dispose();description.dispose();order.dispose();
+    if(value==null)return;
+    await run(()=>widget.api.createAcademyCategory(name:value['name']!,description:value['description']!,sortOrder:int.parse(value['sortOrder']!)));
+  }
+  Future<void> accessDialog(bool grant) async {
+    final uid=TextEditingController(),reason=TextEditingController();
+    final form=GlobalKey<FormState>();
+    final value=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(
+      title:Text(grant?'Grant full Academy access':'Revoke Academy access'),
+      content:Form(key:form,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextFormField(controller:uid,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Member Monarch UID',hintText:'MONARCH123456'),validator:(v)=>RegExp('^MONARCH[0-9]{6}$',caseSensitive:false).hasMatch((v??'').trim())?null:'Enter MONARCH + six digits'),
+        if(grant)TextFormField(controller:reason,decoration:const InputDecoration(labelText:'Reason (optional)')),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:(){if(form.currentState!.validate())Navigator.pop(ctx,{'uid':uid.text.trim().toUpperCase(),'reason':reason.text.trim()});},style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(grant?'Grant access':'Revoke access'))],
+    ));
+    uid.dispose();reason.dispose();
+    if(value==null)return;
+    if(grant)await run(()=>widget.api.grantAcademyAccess(memberUid:value['uid']!,reason:value['reason']!));
+    else await run(()=>widget.api.revokeAcademyAccess(memberUid:value['uid']!));
+  }
+  Future<void> createLesson(List<Map<String,dynamic>> categories) async {
+    final title=TextEditingController(),description=TextEditingController(),content=TextEditingController(),video=TextEditingController(),order=TextEditingController(text:'0');
+    final form=GlobalKey<FormState>();
+    int? categoryId;String access='free',status='draft';
+    final value=await showDialog<Map<String,dynamic>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setLocal)=>AlertDialog(
+      title:const Text('Create lesson'),
+      content:SizedBox(width:500,child:Form(key:form,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+        TextFormField(controller:title,decoration:const InputDecoration(labelText:'Lesson title'),validator:(v)=>(v==null||v.trim().isEmpty)?'Enter a title':null),
+        TextFormField(controller:description,decoration:const InputDecoration(labelText:'Description')),
+        DropdownButtonFormField<int?>(value:categoryId,decoration:const InputDecoration(labelText:'Category'),items:[const DropdownMenuItem<int?>(value:null,child:Text('Unassigned')),...categories.where((c)=>c['isActive']==true).map((c)=>DropdownMenuItem<int?>(value:(c['id'] as num).toInt(),child:Text((c['name']??'').toString())))],onChanged:(v)=>setLocal(()=>categoryId=v)),
+        TextFormField(controller:order,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Display order'),validator:(v)=>(int.tryParse(v??'')==null||(int.tryParse(v??'')??-1)<0)?'Enter a valid order':null),
+        TextFormField(controller:content,minLines:3,maxLines:6,decoration:const InputDecoration(labelText:'Lesson content / notes'),validator:(v)=>(v==null||v.trim().isEmpty)?'Content is required':null),
+        TextFormField(controller:video,decoration:const InputDecoration(labelText:'Video URL (optional)')),
+        DropdownButtonFormField<String>(value:access,decoration:const InputDecoration(labelText:'Access level'),items:const [DropdownMenuItem(value:'free',child:Text('Free')),DropdownMenuItem(value:'premium',child:Text('Premium'))],onChanged:(v)=>setLocal(()=>access=v??'free')),
+        DropdownButtonFormField<String>(value:status,decoration:const InputDecoration(labelText:'Initial status'),items:const [DropdownMenuItem(value:'draft',child:Text('Draft')),DropdownMenuItem(value:'published',child:Text('Published'))],onChanged:(v)=>setLocal(()=>status=v??'draft')),
+      ])))),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:(){if(form.currentState!.validate())Navigator.pop(ctx,{'title':title.text.trim(),'description':description.text.trim(),'content':content.text.trim(),'videoUrl':video.text.trim(),'sortOrder':int.parse(order.text),'categoryId':categoryId,'accessLevel':access,'status':status});},style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Create lesson'))],
+    )));
+    title.dispose();description.dispose();content.dispose();video.dispose();order.dispose();
+    if(value==null)return;
+    await run(()=>widget.api.createAcademyLesson(title:value['title'],description:value['description'],content:value['content'],videoUrl:value['videoUrl'],sortOrder:value['sortOrder'],categoryId:value['categoryId'],accessLevel:value['accessLevel'],status:value['status']));
+  }
+  Future<void> placementDialog(Map<String,dynamic> lesson,List<Map<String,dynamic>> categories) async {
+    final order=TextEditingController(text:(lesson['sortOrder']??0).toString());
+    int? categoryId=(lesson['categoryId'] as num?)?.toInt();final form=GlobalKey<FormState>();
+    final value=await showDialog<Map<String,dynamic>>(context:context,builder:(ctx)=>StatefulBuilder(builder:(ctx,setLocal)=>AlertDialog(
+      title:const Text('Lesson placement'),
+      content:Form(key:form,child:Column(mainAxisSize:MainAxisSize.min,children:[
+        DropdownButtonFormField<int?>(value:categoryId,decoration:const InputDecoration(labelText:'Category'),items:[const DropdownMenuItem<int?>(value:null,child:Text('Unassigned')),...categories.map((c)=>DropdownMenuItem<int?>(value:(c['id'] as num).toInt(),child:Text((c['name']??'').toString())))],onChanged:(v)=>setLocal(()=>categoryId=v)),
+        TextFormField(controller:order,keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'Display order'),validator:(v)=>(int.tryParse(v??'')==null||(int.tryParse(v??'')??-1)<0)?'Enter a valid order':null),
+      ])),
+      actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:(){if(form.currentState!.validate())Navigator.pop(ctx,{'categoryId':categoryId,'sortOrder':int.parse(order.text)});},style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Save'))],
+    )));
+    order.dispose();if(value==null)return;
+    await run(()=>widget.api.placeAcademyLesson(id:(lesson['id'] as num).toInt(),categoryId:value['categoryId'],sortOrder:value['sortOrder']));
+  }
+  @override Widget build(BuildContext context)=>Scaffold(
+    appBar:AppBar(title:const Text('ACADEMY MANAGEMENT',style:TextStyle(fontSize:13,fontWeight:FontWeight.w900)),actions:[IconButton(onPressed:reload,icon:const Icon(Icons.refresh,color:gold))]),
+    body:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snapshot){
+      if(snapshot.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
+      if(snapshot.hasError)return Center(child:Padding(padding:const EdgeInsets.all(22),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.lock_outline,color:gold,size:42),const SizedBox(height:12),const Text('Academy management could not be loaded.'),const SizedBox(height:8),Text(snapshot.error.toString(),textAlign:TextAlign.center,style:const TextStyle(color:muted,fontSize:11)),const SizedBox(height:12),FilledButton(onPressed:reload,child:const Text('Retry'))])));
+      final data=snapshot.data??<String,dynamic>{};
+      final categories=(data['categories'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+      final lessons=(data['lessons'] as List? ?? const []).whereType<Map>().map((e)=>Map<String,dynamic>.from(e)).toList();
+      return RefreshIndicator(onRefresh:()async{reload();},child:ListView(padding:const EdgeInsets.all(14),children:[
+        if(message!=null)Container(margin:const EdgeInsets.only(bottom:12),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:messageOk?const Color(0x2238B878):const Color(0x22E5484D),borderRadius:BorderRadius.circular(12)),child:Text(message!,style:TextStyle(color:messageOk?const Color(0xFF38B878):const Color(0xFFFF8F80),fontSize:12))),
+        Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('ACADEMY ACCESS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+          const SizedBox(height:5),const Text('Grant full access without charging the member wallet.'),
+          const SizedBox(height:12),Wrap(spacing:8,runSpacing:8,children:[OutlinedButton.icon(onPressed:busy?null:()=>accessDialog(true),icon:const Icon(Icons.lock_open),label:const Text('Grant access')),OutlinedButton.icon(onPressed:busy?null:()=>accessDialog(false),icon:const Icon(Icons.lock_outline),label:const Text('Revoke access'))]),
+        ]))),
+        Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('CATEGORIES',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+          const SizedBox(height:8),if(categories.isEmpty)const Text('No categories found.'),
+          ...categories.map((c)=>ListTile(contentPadding:EdgeInsets.zero,title:Text((c['name']??'').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text((c['description']??'').toString()+' · Order '+(c['sortOrder']??0).toString()+' · '+((c['isActive']==true)?'Active':'Hidden'),style:const TextStyle(color:muted,fontSize:11)),trailing:TextButton(onPressed:busy?null:()=>run(()=>widget.api.toggleAcademyCategory((c['id'] as num).toInt())),child:Text(c['isActive']==true?'Hide':'Activate')))),
+          const SizedBox(height:8),OutlinedButton.icon(onPressed:busy?null:createCategory,icon:const Icon(Icons.add),label:const Text('Create category')),
+        ]))),
+        Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          const Text('LESSONS',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+          const SizedBox(height:4),Text(lessons.length.toString()+' lesson(s)',style:const TextStyle(color:muted,fontSize:11)),
+          const SizedBox(height:8),if(lessons.isEmpty)const Text('No lessons yet.'),
+          ...lessons.map((l)=>Padding(padding:const EdgeInsets.symmetric(vertical:7),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            Text((l['title']??'Untitled').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),
+            const SizedBox(height:3),Text((l['categoryName']??'Unassigned').toString()+' · '+(l['accessLevel']??'').toString()+' · '+(l['status']??'').toString(),style:const TextStyle(color:muted,fontSize:11)),
+            if((l['videoUrl']??'').toString().isNotEmpty)Text((l['videoUrl']).toString(),maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(color:muted,fontSize:10)),
+            Wrap(spacing:5,children:[
+              TextButton.icon(onPressed:busy?null:()=>placementDialog(l,categories),icon:const Icon(Icons.reorder,size:16),label:const Text('Placement')),
+              DropdownButton<String>(value:['draft','published','archived'].contains(l['status'])?l['status'] as String:'draft',items:const [DropdownMenuItem(value:'draft',child:Text('Draft')),DropdownMenuItem(value:'published',child:Text('Published')),DropdownMenuItem(value:'archived',child:Text('Archived'))],onChanged:busy?null:(v)=>v==null?null:run(()=>widget.api.setAcademyLessonStatus((l['id'] as num).toInt(),v))),
+            ]),
+            const Divider(height:10),
+          ]))),
+          const SizedBox(height:8),FilledButton.icon(onPressed:busy?null:()=>createLesson(categories),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),icon:const Icon(Icons.video_library_outlined),label:const Text('Create lesson')),
+        ]))),
+        if(busy)const Padding(padding:EdgeInsets.all(10),child:Center(child:CircularProgressIndicator(color:gold))),
+      ]));
     }),
   );
 }
