@@ -732,7 +732,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
     {'title': 'Trade watchlist', 'route': '/sovereign-admin/watchlist', 'icon': Icons.bookmark_border},
     {'title': 'Governance', 'route': '/sovereign-admin/governance', 'icon': Icons.gavel_outlined},
     {'title': 'Activity log', 'route': '/sovereign-admin/activity', 'icon': Icons.history},
-    {'title': 'Telegram groups & channels', 'route': '/sovereign-admin/telegram', 'icon': Icons.telegram},
+    {'title': 'Telegram groups & channels', 'route': '/sovereign-admin/telegram', 'icon': Icons.send_rounded},
     {'title': 'Live markets', 'route': '/market-movers.html', 'icon': Icons.public},
   ];
 
@@ -1625,7 +1625,8 @@ class _TelegramAdminPageState extends State<TelegramAdminPage> {
   @override
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
-    final selected = chats.where((c) => (c['telegram_chat_id'] ?? '').toString() == selectedChatId).firstOrNull;
+    Map<String, dynamic>? selected;
+    for (final chat in chats) { if ((chat['telegram_chat_id'] ?? '').toString() == selectedChatId) { selected = chat; break; } }
     return Scaffold(
       appBar: AppBar(title: const Text('TELEGRAM OPERATIONS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), actions: [IconButton(onPressed: loading || busy ? null : load, icon: const Icon(Icons.refresh, color: gold), tooltip: 'Refresh chats')]),
       body: loading ? const Center(child: CircularProgressIndicator(color: gold)) : ListView(padding: const EdgeInsets.all(16), children: [
@@ -1643,13 +1644,13 @@ class _TelegramAdminPageState extends State<TelegramAdminPage> {
           const SizedBox(height: 10),
           Text('SELECTED: ${(selected['title'] ?? 'Telegram chat').toString()}', style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          TextField(controller: message, maxLines: 3, maxLength: 4000, decoration: const InputDecoration(labelText: 'Message to send', hintText: 'Write an update for this group or channel')),
+          TextField(controller: message, onChanged: (_) => setState(() {}), maxLines: 3, maxLength: 4000, decoration: const InputDecoration(labelText: 'Message to send', hintText: 'Write an update for this group or channel')),
           const SizedBox(height: 8),
           FilledButton.icon(onPressed: busy || message.text.trim().isEmpty ? null : () => act('send_message', text: message.text.trim()), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)), icon: const Icon(Icons.send), label: Text(busy ? 'Working…' : 'Send message')),
           const SizedBox(height: 8),
-          TextField(controller: title, maxLength: 128, decoration: const InputDecoration(labelText: 'Change chat title')),
+          TextField(controller: title, onChanged: (_) => setState(() {}), maxLength: 128, decoration: const InputDecoration(labelText: 'Change chat title')),
           OutlinedButton(onPressed: busy || title.text.trim().isEmpty ? null : () => act('set_chat_title', text: title.text.trim()), child: const Text('Update title')),
-          TextField(controller: description, maxLength: 255, maxLines: 2, decoration: const InputDecoration(labelText: 'Change chat description')),
+          TextField(controller: description, onChanged: (_) => setState(() {}), maxLength: 255, maxLines: 2, decoration: const InputDecoration(labelText: 'Change chat description')),
           OutlinedButton(onPressed: busy || description.text.trim().isEmpty ? null : () => act('set_chat_description', text: description.text.trim()), child: const Text('Update description')),
           OutlinedButton.icon(onPressed: busy ? null : showMembers, icon: const Icon(Icons.people_outline), label: const Text('View known members')),
           const SizedBox(height: 12),
