@@ -325,6 +325,7 @@ class _AdminShellState extends State<AdminShell>{
      if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(index==16)page=CommunityPage(api:widget.api,dark:dark);
     if(index==17)page=AdminAcademyPage(api:widget.api,dark:dark);
+    if(index==19)page=AdminInvestmentReportPage(api:widget.api,dark:dark);
     if(index==18){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignAdminShell(api:widget.api,member:widget.member,signOut:widget.signOut,light:widget.light,toggleTheme:widget.toggleTheme,onReturnToSuperAdmin:()=>Navigator.of(context).pop())));if(mounted)setState(()=>selected=0);return;}
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
@@ -409,6 +410,7 @@ class _AdminShellState extends State<AdminShell>{
              _navItem(15,Icons.support_agent,'Help & Support'),
              _navItem(16,Icons.forum_outlined,'Community'),
             _navItem(17,Icons.school_outlined,'Academy management'),
+            _navItem(19,Icons.query_stats_outlined,'Investment report'),
             if((widget.member['adminRole']??'').toString().trim().toLowerCase().replaceAll(' ','_')=='super_admin') _navItem(18,Icons.support_agent_rounded,'Sovereign Desk admin'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
@@ -1807,6 +1809,128 @@ class _TelegramAdminPageState extends State<TelegramAdminPage> {
           const Text('Note: Telegram does not let bots fetch every member in a chat. This list includes members the bot has previously seen.', style: TextStyle(color: muted, fontSize: 11, height: 1.4))
         ]
       ]),
+    );
+  }
+}
+
+
+class AdminInvestmentReportPage extends StatefulWidget {
+  const AdminInvestmentReportPage({super.key, required this.api, required this.dark});
+  final MonarchApi api;
+  final bool dark;
+
+  @override
+  State<AdminInvestmentReportPage> createState() => _AdminInvestmentReportPageState();
+}
+
+class _AdminInvestmentReportPageState extends State<AdminInvestmentReportPage> {
+  late Future<Map<String, dynamic>> future;
+
+  @override
+  void initState() {
+    super.initState();
+    future = widget.api.adminInvestmentReport();
+  }
+
+  void reload() => setState(() => future = widget.api.adminInvestmentReport());
+
+  String money(String currency, Object? value) {
+    final n = double.tryParse((value ?? 0).toString()) ?? 0;
+    return '$currency ' + n.toStringAsFixed(2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = widget.dark;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Investment report'),
+        actions: [IconButton(onPressed: reload, icon: const Icon(Icons.refresh), tooltip: 'Refresh report')],
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator(color: gold));
+          }
+          if (snapshot.hasError) {
+            return ListView(padding: const EdgeInsets.all(20), children: [
+              const Icon(Icons.query_stats_outlined, color: gold, size: 42),
+              const SizedBox(height: 12),
+              const Text('Investment report unavailable', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+              Message(text: _workspaceError(snapshot.error!), success: false),
+              FilledButton(onPressed: reload, child: const Text('Retry')),
+            ]);
+          }
+          final result = snapshot.data ?? <String, dynamic>{};
+          final records = (result['records'] as List? ?? const []).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+          final totals = Map<String, dynamic>.from(result['totals'] as Map? ?? const {});
+          final surface = dark ? panel : Colors.white;
+          final border = dark ? const Color(0xFF302E29) : const Color(0xFFE4DFD2);
+          return ListView(padding: const EdgeInsets.all(16), children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFF6D5920)),
+                gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF30250C), Color(0xFF151411)]),
+              ),
+              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('MONARCH CODEX · FINANCE', style: TextStyle(color: gold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                SizedBox(height: 8),
+                Text('Recorded investment purchases', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900)),
+                SizedBox(height: 6),
+                Text('Read-only report. Totals cover the latest 200 records only; no returns or earnings are estimated.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            if (totals.isEmpty && records.isEmpty)
+              Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)), child: const Text('No recorded member investment purchases yet.', style: TextStyle(color: muted)))
+            else
+              ...totals.entries.map((entry) {
+                final values = Map<String, dynamic>.from(entry.value as Map);
+                final currency = entry.key;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(15),
+                  decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(currency + ' · ' + (values['count'] ?? 0).toString() + ' records', style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 10),
+                    Text('Principal recorded: ' + money(currency, values['principal']), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 5),
+                    Text('Fees recorded: ' + money(currency, values['fees']), style: const TextStyle(color: muted)),
+                    const SizedBox(height: 5),
+                    Text('Total charged: ' + money(currency, values['charged']), style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ]),
+                );
+              }),
+            const SizedBox(height: 8),
+            Text('LATEST RECORDS · ' + records.length.toString(), style: const TextStyle(color: gold, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
+            const SizedBox(height: 8),
+            ...records.map((record) => Container(
+              margin: const EdgeInsets.only(bottom: 9),
+              decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: border)),
+              child: ListTile(
+                title: Text((record['packageName'] ?? 'Package unavailable').toString(), style: const TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    (record['memberName'] ?? 'Member').toString() + ' · ' + (record['uid'] ?? '').toString() +
+                    '\\nStatus: ' + (record['status'] ?? 'unknown').toString() +
+                    '\\nPrincipal: ' + money((record['currency'] ?? '').toString(), record['principal']) +
+                    '\\nFee: ' + money((record['currency'] ?? '').toString(), record['fee']) +
+                    '\\nTotal charged: ' + money((record['currency'] ?? '').toString(), record['totalCharged']) +
+                    '\\nReference: ' + (record['reference'] ?? '—').toString(),
+                    style: const TextStyle(color: muted, height: 1.5, fontSize: 11),
+                  ),
+                ),
+                isThreeLine: true,
+              ),
+            )),
+          ]);
+        },
+      ),
     );
   }
 }
