@@ -325,7 +325,7 @@ class _AdminShellState extends State<AdminShell>{
      if(index==15)page=AdminHelpSupportPage(dark:dark);
     if(index==16)page=CommunityPage(api:widget.api,dark:dark);
     if(index==17)page=AdminAcademyPage(api:widget.api,dark:dark);
-    if(index==18){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignAdminShell(api:widget.api,member:widget.member,signOut:widget.signOut,light:widget.light,toggleTheme:widget.toggleTheme)));if(mounted)setState(()=>selected=0);return;}
+    if(index==18){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>SovereignAdminShell(api:widget.api,member:widget.member,signOut:widget.signOut,light:widget.light,toggleTheme:widget.toggleTheme,onReturnToSuperAdmin:()=>Navigator.of(context).pop())));if(mounted)setState(()=>selected=0);return;}
     if(page!=null)await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>page!));
     if(mounted)setState(()=>selected=0);
   }
@@ -706,12 +706,13 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
 }
 
 class SovereignAdminShell extends StatefulWidget {
-  const SovereignAdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
+  const SovereignAdminShell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme, this.onReturnToSuperAdmin});
   final MonarchApi api;
   final Map<String, dynamic> member;
   final Future<void> Function() signOut;
   final bool light;
   final VoidCallback toggleTheme;
+  final VoidCallback? onReturnToSuperAdmin;
   @override
   State<SovereignAdminShell> createState() => _SovereignAdminShellState();
 }
@@ -871,18 +872,30 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
   Widget build(BuildContext context) {
     final dark = Theme.of(context).brightness == Brightness.dark;
     return PopScope<Object?>(
-      canPop: false,
+      canPop: widget.onReturnToSuperAdmin != null,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) confirmAppExit(context);
+        if (!didPop) {
+          if (widget.onReturnToSuperAdmin != null) {
+            widget.onReturnToSuperAdmin!();
+          } else {
+            confirmAppExit(context);
+          }
+        }
       },
       child: Scaffold(
         key: _scaffoldKey,
         appBar: AppBar(
-          leading: Builder(builder: (context) => IconButton(
-            tooltip: 'Open Sovereign Desk navigation',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            icon: const Icon(Icons.menu_rounded, color: gold),
-          )),
+          leading: widget.onReturnToSuperAdmin != null
+              ? IconButton(
+                  tooltip: 'Return to Super Admin',
+                  onPressed: widget.onReturnToSuperAdmin,
+                  icon: const Icon(Icons.arrow_back_rounded, color: gold),
+                )
+              : Builder(builder: (context) => IconButton(
+                  tooltip: 'Open Sovereign Desk navigation',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: const Icon(Icons.menu_rounded, color: gold),
+                )),
           title: Row(children: [
             SvgPicture.asset('assets/images/monarch-codex-logo.svg', width: 32, height: 32),
             const SizedBox(width: 8),
