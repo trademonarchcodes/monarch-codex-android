@@ -82,6 +82,15 @@ class MonarchApi {
   Future<Map<String,dynamic>> adminAuditEvents() async => Map<String,dynamic>.from((await dio.get('admin/audit-events')).data as Map);
   Future<Map<String,dynamic>> adminAnalytics() async => Map<String,dynamic>.from((await dio.get('admin/analytics')).data as Map);
   Future<Map<String,dynamic>> adminSecurity() async => Map<String,dynamic>.from((await dio.get('admin/security')).data as Map);
+
+  Future<Map<String,dynamic>> adminAcademy() async => Map<String,dynamic>.from((await dio.get('admin/academy')).data as Map);
+  Future<Map<String,dynamic>> createAcademyCategory({required String name,required String description,required int sortOrder}) async => Map<String,dynamic>.from((await dio.post('admin/academy/categories',data:{'name':name,'description':description,'sortOrder':sortOrder})).data as Map);
+  Future<Map<String,dynamic>> toggleAcademyCategory(int id) async => Map<String,dynamic>.from((await dio.post('admin/academy/categories/$id/toggle')).data as Map);
+  Future<Map<String,dynamic>> createAcademyLesson({required String title,required String description,required String content,required String videoUrl,required String accessLevel,required String status,required int sortOrder,int? categoryId}) async => Map<String,dynamic>.from((await dio.post('admin/academy/lessons',data:{'title':title,'description':description,'content':content,'videoUrl':videoUrl,'accessLevel':accessLevel,'status':status,'sortOrder':sortOrder,'categoryId':categoryId})).data as Map);
+  Future<Map<String,dynamic>> placeAcademyLesson({required int id,int? categoryId,required int sortOrder}) async => Map<String,dynamic>.from((await dio.post('admin/academy/lessons/$id/placement',data:{'categoryId':categoryId,'sortOrder':sortOrder})).data as Map);
+  Future<Map<String,dynamic>> setAcademyLessonStatus(int id,String status) async => Map<String,dynamic>.from((await dio.post('admin/academy/lessons/$id/status',data:{'status':status})).data as Map);
+  Future<Map<String,dynamic>> grantAcademyAccess({required String memberUid,required String reason}) async => Map<String,dynamic>.from((await dio.post('admin/academy/access',data:{'memberUid':memberUid,'reason':reason})).data as Map);
+  Future<Map<String,dynamic>> revokeAcademyAccess({required String memberUid}) async => Map<String,dynamic>.from((await dio.post('admin/academy/access/revoke',data:{'memberUid':memberUid})).data as Map);
   Future<Map<String, dynamic>> submitWithdrawal({required String currency, required String amount, required String bankId, required String note}) async => Map<String, dynamic>.from((await dio.post('withdrawal/requests', data: {'currency': currency, 'amount': amount, 'bank_account_id': bankId, 'member_note': note})).data as Map);
 
   Future<Map<String,dynamic>> profile() async => Map<String,dynamic>.from((await dio.get('profile')).data['member'] as Map);
