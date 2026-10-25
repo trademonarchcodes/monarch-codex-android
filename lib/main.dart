@@ -609,6 +609,38 @@ class _AcademyPageState extends State<AcademyPage> {
       if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
     }catch(e){if(mounted)setState(() { message=e.toString(); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
   }
+  List<Widget> _academyLessonWidgets(List<Map<String,dynamic>> lessons) {
+    final widgets=<Widget>[];
+    String? previousCategory;
+    for(final l in lessons){
+      final category=(l['categoryName']??'Unassigned').toString().trim().isEmpty?'Unassigned':(l['categoryName']??'Unassigned').toString();
+      if(category!=previousCategory){
+        widgets.add(Padding(
+          padding: EdgeInsets.only(top:widgets.isEmpty?18:22,bottom:2),
+          child:Row(children:[
+            Container(width:4,height:24,decoration:BoxDecoration(color:gold,borderRadius:BorderRadius.circular(4))),
+            const SizedBox(width:9),
+            Expanded(child:Text(category.toUpperCase(),style:const TextStyle(color:gold,fontSize:13,fontWeight:FontWeight.w900,letterSpacing:1.1))),
+          ]),
+        ));
+        previousCategory=category;
+      }
+      final id=(l['id'] as num).toInt();
+      final done=l['completed']==true,can=l['canOpen']==true,fee=l['requiresReplayFee']==true,ready=l['replayReady']==true,wait=busy.contains(id);
+      widgets.add(Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:widget.dark?const Color(0xFF393326):const Color(0xFFE0D7BC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[Container(width:36,height:36,alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xFF30250C),borderRadius:BorderRadius.circular(10)),child:Text((l['order']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),const SizedBox(width:10),Expanded(child:Text((l['title']??'Lesson').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16))),if(done)const Icon(Icons.check_circle,color:Color(0xFF4CAF80))]),
+        if((l['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(l['description'].toString(),style:const TextStyle(color:muted))),
+        const SizedBox(height:8),Text(done?(fee?'Previous video · \$2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
+        const SizedBox(height:9),Wrap(spacing:8,runSpacing:8,children:[
+          if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
+          if(can&&(!done||ready))OutlinedButton.icon(onPressed:wait?null:()=>act(id,()=>widget.api.watchAcademyLesson(id),watch:true),icon:const Icon(Icons.play_arrow),label:Text(wait?'Opening…':'Watch video')),
+          if(can&&!done&&opened.contains(id))FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.completeAcademyLesson(id),complete:true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Mark video finished'))
+        ])
+      ])));
+    }
+    return widgets;
+  }
+
   @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,snap){
     if(snap.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));
     if(snap.hasError)return ListView(padding:const EdgeInsets.all(18),children:[const Text('Monarch Codex Academy',style:TextStyle(fontSize:23,fontWeight:FontWeight.w900)),Message(text:'Academy could not load. Check your connection and retry.',success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
@@ -623,7 +655,7 @@ class _AcademyPageState extends State<AcademyPage> {
       ])),
       if(message!=null)Padding(padding:const EdgeInsets.only(top:10),child:Message(text:message!,success:success)),
       if(lessons.isEmpty)const Padding(padding:EdgeInsets.all(20),child:Text('Lessons are being prepared.',style:TextStyle(color:muted))),
-      ...lessons.map((l){final id=(l['id'] as num).toInt();final done=l['completed']==true,can=l['canOpen']==true,fee=l['requiresReplayFee']==true,ready=l['replayReady']==true,wait=busy.contains(id);
+      ..._academyLessonWidgets(lessons)
         return Container(margin:const EdgeInsets.only(top:10),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(16),border:Border.all(color:widget.dark?const Color(0xFF393326):const Color(0xFFE0D7BC))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
           Row(children:[Container(width:36,height:36,alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xFF30250C),borderRadius:BorderRadius.circular(10)),child:Text((l['order']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),const SizedBox(width:10),Expanded(child:Text((l['title']??'Lesson').toString(),style:const TextStyle(fontWeight:FontWeight.w900,fontSize:16))),if(done)const Icon(Icons.check_circle,color:Color(0xFF4CAF80))]),
           Padding(padding:const EdgeInsets.only(top:7),child:Text((l['categoryName']??'Unassigned').toString().toUpperCase(),style:const TextStyle(color:gold,fontSize:10,fontWeight:FontWeight.w900,letterSpacing:1.1))),
