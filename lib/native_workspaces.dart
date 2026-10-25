@@ -1607,7 +1607,7 @@ class _AdminAcademyPageState extends State<AdminAcademyPage>{
     final value=await showDialog<Map<String,String>>(context:context,builder:(ctx)=>AlertDialog(
       title:Text(grant?'Grant full Academy access':'Revoke Academy access'),
       content:Form(key:form,child:Column(mainAxisSize:MainAxisSize.min,children:[
-        TextFormField(controller:uid,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Member Monarch UID',hintText:'MONARCH123456'),validator:(v)=>RegExp(r'^MONARCH[0-9]{6}.hasMatch((v??'').trim())?null:'Enter MONARCH + six digits'),
+        TextFormField(controller:uid,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(labelText:'Member Monarch UID',hintText:'MONARCH123456'),validator:(v)=>RegExp(r'^MONARCH[0-9]{6}$',caseSensitive:false).hasMatch((v??'').trim())?null:'Enter MONARCH + six digits'),
         if(grant)TextFormField(controller:reason,decoration:const InputDecoration(labelText:'Reason (optional)')),
       ])),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:(){if(form.currentState!.validate())Navigator.pop(ctx,{'uid':uid.text.trim().toUpperCase(),'reason':reason.text.trim()});},style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(grant?'Grant access':'Revoke access'))],
