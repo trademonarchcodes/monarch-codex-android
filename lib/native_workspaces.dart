@@ -732,6 +732,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
     {'title': 'Trade watchlist', 'route': '/sovereign-admin/watchlist', 'icon': Icons.bookmark_border},
     {'title': 'Governance', 'route': '/sovereign-admin/governance', 'icon': Icons.gavel_outlined},
     {'title': 'Activity log', 'route': '/sovereign-admin/activity', 'icon': Icons.history},
+    {'title': 'Telegram groups & channels', 'route': '/sovereign-admin/telegram', 'icon': Icons.telegram},
     {'title': 'Live markets', 'route': '/market-movers.html', 'icon': Icons.public},
   ];
 
@@ -766,12 +767,15 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
       '/sovereign-admin/chat':'chat','/sovereign-admin/announcements':'announcements',
       '/sovereign-admin/events':'events','/sovereign-admin/watchlist':'watchlist',
       '/sovereign-admin/governance':'governance','/sovereign-admin/activity':'activity',
+      '/sovereign-admin/telegram':'telegram',
       '/market-movers.html':'markets',
     };
     final section=sections[route]??'overview';
     final title=deskDestinations.firstWhere((x)=>x['route']==route,orElse:()=>{'title':'Sovereign Desk'})['title'] as String;
     await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder:(_)=>SovereignDeskSectionPage(api:widget.api,section:section,title:title),
+      builder: (_) => section == 'telegram'
+          ? TelegramAdminPage(api: widget.api, member: widget.member)
+          : SovereignDeskSectionPage(api: widget.api, section: section, title: title),
     ));
     if(mounted)setState(()=>selectedDestination=0);
   }
@@ -1542,3 +1546,116 @@ class _SovereignDeskChatPageState extends State<SovereignDeskChatPage>{
   );
 }
 
+
+
+class TelegramAdminPage extends StatefulWidget {
+  const TelegramAdminPage({super.key, required this.api, required this.member});
+  final MonarchApi api;
+  final Map<String, dynamic> member;
+  @override
+  State<TelegramAdminPage> createState() => _TelegramAdminPageState();
+}
+
+class _TelegramAdminPageState extends State<TelegramAdminPage> {
+  bool loading = true, busy = false;
+  String? error, notice, selectedChatId;
+  List<Map<String, dynamic>> chats = [];
+  final message = TextEditingController();
+  final title = TextEditingController();
+  final description = TextEditingController();
+
+  @override
+  void initState() { super.initState(); load(); }
+  @override
+  void dispose() { message.dispose(); title.dispose(); description.dispose(); super.dispose(); }
+
+  Future<void> load() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final data = await widget.api.telegramAdminChats();
+      final rows = (data['chats'] as List? ?? const []).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
+      if (!mounted) return;
+      setState(() {
+        chats = rows;
+        if (selectedChatId == null && rows.isNotEmpty) selectedChatId = (rows.first['telegram_chat_id'] ?? '').toString();
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { error = e is DioException && e.response?.data is Map ? ((e.response!.data as Map)['message'] ?? (e.response!.data as Map)['error'] ?? 'Could not load Telegram chats').toString() : 'Could not load Telegram chats. Check the connection and administrator access.'; loading = false; });
+    }
+  }
+
+  Future<void> act(String action, {String? text}) async {
+    final id = selectedChatId;
+    if (id == null || id.isEmpty) { setState(() => error = 'Choose a group or channel first.'); return; }
+    setState(() { busy = true; error = null; notice = null; });
+    try {
+      await widget.api.telegramAdminAction({'action': action, 'chat_id': id, if (text != null) 'text': text});
+      if (!mounted) return;
+      setState(() { notice = 'Telegram action completed.'; busy = false; });
+      await load();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { busy = false; error = e is DioException && e.response?.data is Map ? ((e.response!.data as Map)['message'] ?? (e.response!.data as Map)['error'] ?? 'Telegram action failed').toString() : 'Telegram action failed. Check the bot permissions and try again.'; });
+    }
+  }
+
+  Future<void> showMembers() async {
+    if (selectedChatId == null) return;
+    setState(() { busy = true; error = null; });
+    try {
+      final data = await widget.api.telegramAdminMembers(selectedChatId!);
+      if (!mounted) return;
+      final members = (data['members'] as List? ?? const []).whereType<Map>().map((e) => Map<String,dynamic>.from(e)).toList();
+      setState(() => busy = false);
+      await showModalBottomSheet<void>(context: context, showDragHandle: true, isScrollControlled: true, builder: (ctx) => SafeArea(child: SizedBox(height: MediaQuery.of(ctx).size.height * .7, child: ListView(padding: const EdgeInsets.all(16), children: [
+        const Text('KNOWN TELEGRAM MEMBERS', style: TextStyle(color: gold, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 8),
+        Text((data['note'] ?? 'Member list').toString(), style: const TextStyle(color: muted, fontSize: 12)),
+        const SizedBox(height: 12),
+        if (members.isEmpty) const Text('No known members are available for this chat yet.'),
+        for (final m in members) ListTile(leading: const Icon(Icons.person_outline, color: gold), title: Text('@${(m['telegram_username'] ?? 'unknown').toString()}'), subtitle: Text('${(m['first_name'] ?? '').toString()} ${(m['last_name'] ?? '').toString()} · ${(m['status'] ?? 'unknown').toString()}'))
+      ]))));
+    } catch (e) {
+      if (mounted) setState(() { busy = false; error = e is DioException && e.response?.data is Map ? ((e.response!.data as Map)['message'] ?? (e.response!.data as Map)['error'] ?? 'Could not load members').toString() : 'Could not load Telegram members.'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final selected = chats.where((c) => (c['telegram_chat_id'] ?? '').toString() == selectedChatId).firstOrNull;
+    return Scaffold(
+      appBar: AppBar(title: const Text('TELEGRAM OPERATIONS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900)), actions: [IconButton(onPressed: loading || busy ? null : load, icon: const Icon(Icons.refresh, color: gold), tooltip: 'Refresh chats')]),
+      body: loading ? const Center(child: CircularProgressIndicator(color: gold)) : ListView(padding: const EdgeInsets.all(16), children: [
+        Container(padding: const EdgeInsets.all(18), decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFF6D5920)), gradient: const LinearGradient(colors: [Color(0xFF30250C), Color(0xFF151411), Color(0xFF101012)])), child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('SOVEREIGN DESK · TELEGRAM', style: TextStyle(color: gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          SizedBox(height: 10), Text('Groups & channels', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900)),
+          SizedBox(height: 6), Text('Manage registered Telegram groups and channels using the existing Cloudflare bot. Actions depend on the permissions granted to the bot.', style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.5))
+        ])),
+        const SizedBox(height: 14),
+        if (error != null) Message(text: error!, success: false),
+        if (notice != null) Message(text: notice!, success: true),
+        if (chats.isEmpty) Container(padding: const EdgeInsets.all(18), decoration: mcCard(dark), child: const Text('No registered groups or channels were returned. Confirm the Worker URL and shared secret are configured and that the bot has joined the chat.')),
+        for (final chat in chats) Card(color: (chat['telegram_chat_id'] ?? '').toString() == selectedChatId ? gold.withValues(alpha: .12) : null, child: ListTile(onTap: () => setState(() { selectedChatId = (chat['telegram_chat_id'] ?? '').toString(); title.text = (chat['title'] ?? '').toString(); description.text = (chat['description'] ?? '').toString(); }), leading: Icon(chat['chat_type'] == 'channel' ? Icons.campaign_outlined : Icons.groups_outlined, color: gold), title: Text((chat['title'] ?? 'Telegram chat').toString(), style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text('${(chat['chat_type'] ?? 'group').toString()} · ${(chat['member_count'] ?? '—').toString()} members\nChat ID: ${(chat['telegram_chat_id'] ?? '').toString()}'), isThreeLine: true, trailing: Icon((chat['telegram_chat_id'] ?? '').toString() == selectedChatId ? Icons.check_circle : Icons.chevron_right, color: gold))),
+        if (selected != null) ...[
+          const SizedBox(height: 10),
+          Text('SELECTED: ${(selected['title'] ?? 'Telegram chat').toString()}', style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 8),
+          TextField(controller: message, maxLines: 3, maxLength: 4000, decoration: const InputDecoration(labelText: 'Message to send', hintText: 'Write an update for this group or channel')),
+          const SizedBox(height: 8),
+          FilledButton.icon(onPressed: busy || message.text.trim().isEmpty ? null : () => act('send_message', text: message.text.trim()), style: FilledButton.styleFrom(backgroundColor: gold, foregroundColor: ink, minimumSize: const Size.fromHeight(48)), icon: const Icon(Icons.send), label: Text(busy ? 'Working…' : 'Send message')),
+          const SizedBox(height: 8),
+          TextField(controller: title, maxLength: 128, decoration: const InputDecoration(labelText: 'Change chat title')),
+          OutlinedButton(onPressed: busy || title.text.trim().isEmpty ? null : () => act('set_chat_title', text: title.text.trim()), child: const Text('Update title')),
+          TextField(controller: description, maxLength: 255, maxLines: 2, decoration: const InputDecoration(labelText: 'Change chat description')),
+          OutlinedButton(onPressed: busy || description.text.trim().isEmpty ? null : () => act('set_chat_description', text: description.text.trim()), child: const Text('Update description')),
+          OutlinedButton.icon(onPressed: busy ? null : showMembers, icon: const Icon(Icons.people_outline), label: const Text('View known members')),
+          const SizedBox(height: 12),
+          const Text('Note: Telegram does not let bots fetch every member in a chat. This list includes members the bot has previously seen.', style: TextStyle(color: muted, fontSize: 11, height: 1.4))
+        ]
+      ]),
+    );
+  }
+}
