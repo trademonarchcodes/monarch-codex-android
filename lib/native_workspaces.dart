@@ -33,12 +33,35 @@ Future<void> confirmAppExit(BuildContext context) async {
 }
 
 String _workspaceError(Object error) {
-  if (error is DioException) {
-    final data = error.response?.data;
-    if (data is Map && data['message'] is String) return data['message'] as String;
-    if (error.response?.statusCode == 401) return 'Your session expired. Sign in again.';
+  if (error is! DioException) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    return message.isEmpty ? 'We could not complete this request. Please try again.' : message;
   }
-  return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
+  final response = error.response;
+  final status = response?.statusCode;
+  final data = response?.data;
+  if (data is Map) {
+    for (final key in const ['message', 'error_description', 'error']) {
+      final value = data[key];
+      if (value is String && value.trim().isNotEmpty &&
+          !const ['internal_server_error', 'request_failed'].contains(value.trim().toLowerCase())) {
+        return value.trim();
+      }
+    }
+  }
+  if (status == 401) return 'Your session has expired. Sign in again, then reopen the admin dashboard.';
+  if (status == 403) return 'Your account does not have permission for this admin action. Sign in with an authorized admin account or ask the Super Admin to review your access.';
+  if (status == 404) return 'This admin service was not found on the server. The website backend may need its latest deployment.';
+  if (status == 408 || error.type == DioExceptionType.connectionTimeout ||
+      error.type == DioExceptionType.sendTimeout || error.type == DioExceptionType.receiveTimeout) {
+    return 'The server took too long to respond. Check your connection and retry.';
+  }
+  if (status == 429) return 'Too many requests were sent. Wait a moment, then retry.';
+  if (status != null && status >= 500) return 'The website server could not complete this admin request (HTTP $status). Please retry; if it continues, the backend logs need checking.';
+  if (error.type == DioExceptionType.connectionError) return 'Could not connect to monarchcodex.online. Check your internet connection and retry.';
+  if (error.type == DioExceptionType.cancel) return 'This request was cancelled. Please retry if you still need it.';
+  if (status != null) return 'The admin request failed (HTTP $status). Refresh and try again.';
+  return 'The request could not reach the server. Check your connection and retry.';
 }
 
 class AdminFeedbackPage extends StatefulWidget {
@@ -540,17 +563,7 @@ class _AdminMembersPageState extends State<AdminMembersPage>{
  @override void initState(){super.initState();future=widget.api.adminMembers();}
  @override void dispose(){search.dispose();super.dispose();}
  void reload()=>setState(()=>future=widget.api.adminMembers(q:search.text.trim()));
- String err(Object e){
-  if(e is DioException){
-   final response=e.response;
-   final data=response?.data;
-   if(data is Map){final message=data['message'];if(message is String&&message.trim().isNotEmpty)return message;}
-   final status=response?.statusCode;
-   if(status!=null)return 'Manage Members request failed (HTTP $status). Refresh and try again. If this continues, the server administrator must check the mobile API logs and required database migrations.';
-   if(e.type==DioExceptionType.connectionError||e.type==DioExceptionType.connectionTimeout||e.type==DioExceptionType.receiveTimeout)return 'Could not reach the Monarch Codex server. Check your internet connection and try again.';
-  }
-  return 'Could not load Manage Members. Please retry.';
- }
+ String err(Object e) => _workspaceError(e);
  Future<void> toggle(Map<String,dynamic> m,bool blocked)async{final id=(m['id'] as num).toInt();setState(()=>busy=true);try{await widget.api.setMemberBlocked(id,blocked);if(mounted)setState(()=>notice=blocked?'Member blocked.':'Member unblocked.');reload();}catch(e){if(mounted)setState(()=>notice=err(e));}finally{if(mounted)setState(()=>busy=false);}}
  Future<void> remove(Map<String,dynamic> m)async{final id=(m['id'] as num).toInt();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Delete member?'),content:Text('Permanently delete '+(m['fullName']??m['username']??'this member').toString()+'? This cannot be undone.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(c,true),style:FilledButton.styleFrom(backgroundColor:Colors.red),child:const Text('Delete permanently'))]));if(ok!=true)return;setState(()=>busy=true);try{await widget.api.deleteMember(id);if(mounted)setState(()=>notice='Member deleted.');reload();}catch(e){if(mounted)setState(()=>notice=err(e));}finally{if(mounted)setState(()=>busy=false);}}
  Future<void> details(Map<String,dynamic> m)async{final id=(m['id'] as num).toInt();showDialog(context:context,builder:(_)=>const Center(child:CircularProgressIndicator(color:gold)));try{final d=await widget.api.adminMember(id);if(!mounted)return;Navigator.of(context,rootNavigator:true).pop();final x=Map<String,dynamic>.from(d['member'] as Map);final wallets=(d['wallets'] as List? ??[]).whereType<Map>().toList();final kyc=(d['kyc'] as List? ??[]).whereType<Map>().toList();showDialog(context:context,builder:(c)=>AlertDialog(title:Text((x['fullName']??'Member').toString()),content:SingleChildScrollView(child:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[for(final k in ['id','uid','username','email','phone','createdAt','emailVerifiedAt','isBlocked'])Padding(padding:const EdgeInsets.only(bottom:6),child:Text(k+': '+(x[k]??'—').toString())),const Divider(),const Text('Wallets',style:TextStyle(fontWeight:FontWeight.bold)),for(final w in wallets)Text((w['currency']??'').toString()+': '+(w['balance']??'0').toString()),const SizedBox(height:8),const Text('Recent KYC',style:TextStyle(fontWeight:FontWeight.bold)),for(final k in kyc)Text((k['status']??'').toString()+' · '+(k['submittedAt']??'').toString())])),actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Close'))]));}catch(e){if(mounted){Navigator.of(context,rootNavigator:true).pop();ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(err(e))));}}}
@@ -681,7 +694,7 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
  late Future<Map<String,dynamic>> future; final roleName=TextEditingController(),roleDescription=TextEditingController(); String? error,notice; bool saving=false;
  @override void initState(){super.initState();future=widget.api.adminRoles();}
  void reload()=>setState(()=>future=widget.api.adminRoles());
- String msg(Object e){if(e is DioException&&e.response?.data is Map)return ((e.response!.data as Map)['message']??'Request failed').toString();return e.toString().replaceFirst('Exception: ','');}
+ String msg(Object e) => _workspaceError(e);
  Future<void> save({int? id,String? name,String? description,bool active=true})async{setState(()=>saving=true);try{await widget.api.saveRole(roleId:id,roleName:name??roleName.text.trim(),description:description??roleDescription.text.trim(),isActive:active);roleName.clear();roleDescription.clear();if(mounted)setState(()=>notice='Role options saved.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}finally{if(mounted)setState(()=>saving=false);}}
  Future<void> review(int id,String decision)async{try{await widget.api.reviewRoleRequest(requestId:id,decision:decision);if(mounted)setState(()=>notice='Request reviewed.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}}
  Future<void> assign(int memberId,int roleId,String action)async{try{await widget.api.assignRole(memberId:memberId,roleId:roleId,action:action);if(mounted)setState(()=>notice=action=='assign'?'Role assigned.':'Role removed.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}}
@@ -1427,7 +1440,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   @override void initState(){super.initState();future=_load();}
   Future<Map<String,dynamic>> _load()=>widget.section=='markets'?Future.value({'items':<dynamic>[]}):widget.api.sovereignDeskSection(widget.section);
   void reload()=>setState(()=>future=_load());
-  String errorText(Object e){if(e is DioException&&e.response?.data is Map){final d=e.response!.data as Map;return (d['message']??d['error']??'Request failed').toString();}return 'Could not complete the request. Check your connection and administrator permissions.';}
+  String errorText(Object e) => _workspaceError(e);
   List<Map<String,dynamic>> list(dynamic v)=>v is List?v.whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList():<Map<String,dynamic>>[];
   Future<void> update(String path,Map<String,dynamic> body)async{
     setState(()=>busy=true);
