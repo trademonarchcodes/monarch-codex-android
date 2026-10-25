@@ -1427,7 +1427,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   @override void initState(){super.initState();future=_load();}
   Future<Map<String,dynamic>> _load()=>widget.section=='markets'?Future.value({'items':<dynamic>[]}):widget.api.sovereignDeskSection(widget.section);
   void reload()=>setState(()=>future=_load());
-  String errorText(Object e){if(e is DioException&&e.response?.data is Map){final d=e.response!.data as Map;return (d['message']??d['error']??'Request failed').toString();}return 'Could not complete the request. Check your connection and administrator permissions.';}
+  String errorText(Object e)=>apiErrorMessage(e,fallback:'Could not complete the request. Check your connection and administrator permissions.');
   List<Map<String,dynamic>> list(dynamic v)=>v is List?v.whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList():<Map<String,dynamic>>[];
   Future<void> update(String path,Map<String,dynamic> body)async{
     if(busy)return;
