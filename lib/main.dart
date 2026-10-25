@@ -145,6 +145,15 @@ class MonarchApi {
   Future<Map<String,dynamic>> sovereignDeskUpdate(String path,Map<String,dynamic> data) async =>
       Map<String,dynamic>.from((await dio.post('sovereign/$path',data:data)).data as Map);
 
+  Future<Map<String,dynamic>> telegramAdminChats() async =>
+      Map<String,dynamic>.from((await dio.get('telegram/admin-chats')).data as Map);
+  Future<Map<String,dynamic>> telegramAdminMembers(String chatId) async =>
+      Map<String,dynamic>.from((await dio.get('telegram/admin-chat-members',queryParameters:{'chat_id':chatId})).data as Map);
+  Future<Map<String,dynamic>> telegramAdminAssignment({required String chatId,required String operatorUserId,required String action}) async =>
+      Map<String,dynamic>.from((await dio.post('telegram/admin-chat-assignment',data:{'chat_id':chatId,'operator_user_id':operatorUserId,'action':action})).data as Map);
+  Future<Map<String,dynamic>> telegramAdminAction(Map<String,dynamic> data) async =>
+      Map<String,dynamic>.from((await dio.post('telegram/admin-action',data:data)).data as Map);
+
 
   Future<Map<String, dynamic>> submitDeposit({required String currency, required String amount, required String methodId, required String reference, required String note, required PlatformFile proof}) async {
     final bytes = proof.bytes;
