@@ -865,7 +865,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         ),
       ),
     );
-    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid)));
+    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid, api: widget.api)));
     return ListView(padding: const EdgeInsets.all(15), children: [
       Container(
         padding: const EdgeInsets.all(20),
@@ -948,8 +948,8 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
 
 
 class SovereignNativeSectionPage extends StatefulWidget {
-  const SovereignNativeSectionPage({super.key, required this.type, required this.dark, required this.uid});
-  final String type; final bool dark; final String uid;
+  const SovereignNativeSectionPage({super.key, required this.type, required this.dark, required this.uid, required this.api});
+  final String type; final bool dark; final String uid; final MonarchApi api;
   @override State<SovereignNativeSectionPage> createState()=>_SovereignNativeSectionPageState();
 }
 class _SovereignNativeSectionPageState extends State<SovereignNativeSectionPage> {
