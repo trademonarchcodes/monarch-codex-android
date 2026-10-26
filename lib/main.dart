@@ -722,15 +722,19 @@ class _AcademyPageState extends State<AcademyPage> {
   late Future<Map<String,dynamic>> future;
   final Set<int> opened = <int>{};
   final Set<int> busy = <int>{};
+  // Keep a replay key stable across retries so an uncertain network response cannot
+  // accidentally turn a retry into a second $2 charge for the same lesson.
+  final Map<int, String> replayKeys = <int, String>{};
   String? message;
   bool success = true;
   @override void initState(){super.initState();future=widget.api.academy();}
   void reload(){setState(()=>future=widget.api.academy());}
   String academyKey(){final r=math.Random.secure();final b=List<int>.generate(16,(_)=>r.nextInt(256));b[6]=(b[6]&0x0f)|0x40;b[8]=(b[8]&0x3f)|0x80;final h=b.map((v)=>v.toRadixString(16).padLeft(2,'0')).join();return h.substring(0,8)+'-'+h.substring(8,12)+'-'+h.substring(12,16)+'-'+h.substring(16,20)+'-'+h.substring(20);}
+  String replayKeyFor(int lessonId)=>replayKeys.putIfAbsent(lessonId,academyKey);
 
   Future<void> act(int id,Future<Map<String,dynamic>> Function() action,{bool watch=false,bool complete=false})async{
     if(busy.contains(id))return;setState(()=>busy.add(id));
-    try{final r=await action();if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
+    try{final r=await action();if(r['replayReady']==true)replayKeys.remove(id);if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
       if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
     }catch(e){if(mounted)setState(() { message=apiErrorMessage(e,fallback:'We could not complete that Academy action. Refresh and check your access before retrying. If you were charged, do not pay again.'); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
   }
@@ -758,7 +762,7 @@ class _AcademyPageState extends State<AcademyPage> {
         if((l['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(l['description'].toString(),style:const TextStyle(color:muted))),
         const SizedBox(height:8),Text(done?(fee?'Previous video · \$2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson in this category first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
         const SizedBox(height:9),Wrap(spacing:8,runSpacing:8,children:[
-          if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
+          if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:replayKeyFor(id))),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
           if(can&&(!done||ready))OutlinedButton.icon(onPressed:wait?null:()=>act(id,()=>widget.api.watchAcademyLesson(id),watch:true),icon:const Icon(Icons.play_arrow),label:Text(wait?'Opening…':'Watch video')),
           if(can&&!done&&opened.contains(id))FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.completeAcademyLesson(id),complete:true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Mark video finished'))
         ])
