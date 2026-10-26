@@ -1266,7 +1266,7 @@ class _ShellState extends State<Shell> {
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
         headers: const {'Accept': 'application/json'},
-      )).get<dynamic>('https://monarchcodex.online/api/mobile/app-update/latest');
+      )).get<dynamic>('https://monarchcodex.online/api/mobile/app-update/migration/latest');
       if (response.data is! Map) return;
       final release = Map<String, dynamic>.from(response.data as Map);
       final version = (release['version'] ?? '').toString().trim();
