@@ -321,13 +321,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
     return '${hex.substring(0,8)}-${hex.substring(8,12)}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}';
   }
 
-  String messageFrom(Object e) {
-    if (e is DioException && e.response?.data is Map) {
-      final value = (e.response!.data as Map)['message'];
-      if (value != null) return value.toString();
-    }
-    return e.toString().replaceFirst('Exception: ', '');
-  }
+  String messageFrom(Object e) => apiErrorMessage(e, fallback: 'The wallet request could not be completed. Refresh and try again.');
 
   Future<void> refreshBalances() async {
     try {
@@ -467,15 +461,7 @@ class _AuthPageState extends State<AuthPage> {
   bool register = false, accepted = false, busy = false, reveal = false;
   String error = '', notice = '';
   @override void dispose() { name.dispose(); email.dispose(); phone.dispose(); username.dispose(); password.dispose(); confirm.dispose(); referral.dispose(); super.dispose(); }
-  String problem(Object e) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      if (data is Map && data['message'] is String) return data['message'] as String;
-      if (e.response?.statusCode == 404) return 'The mobile service is not deployed yet.';
-      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) return 'Connection failed. Check your internet and try again.';
-    }
-    return 'Something went wrong. Please try again.';
-  }
+  String problem(Object e) => apiErrorMessage(e, fallback: 'Something went wrong. Please try again.');
   Future<void> submit() async {
     FocusScope.of(context).unfocus();
     if (!keyForm.currentState!.validate()) return;
@@ -641,9 +627,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
       reload();
     }catch(e){
       if(!mounted)return;
-      var message='Purchase could not be completed. The server did not confirm a successful transaction.';
-      if(e is DioException){final data=e.response?.data;if(data is Map&&data['message']!=null)message=data['message'].toString();}
-      else message=e.toString().replaceFirst('Exception: ','');
+      final message=apiErrorMessage(e, fallback:'Purchase could not be completed. The server did not confirm a successful transaction. Check your transaction history before retrying.');
       await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
         title:const Row(children:[Icon(Icons.error_outline,color:Colors.redAccent,size:26),SizedBox(width:8),Expanded(child:Text('Purchase not completed'))]),
         content:Text(message),
@@ -1690,7 +1674,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
   @override void initState(){super.initState();member=Map<String,dynamic>.from(widget.member);_setControllers(member);_load();}
   void _setControllers(Map<String,dynamic> m){name.text=(m['fullName']??'').toString();username.text=(m['username']??'').toString();email.text=(m['email']??'').toString();phone.text=(m['phone']??'').toString();}
   Future<void> _load() async {try{final p=await widget.api.profile();if(!mounted)return;setState((){member=p;_setControllers(p);loading=false;});try{final r=await widget.api.roles();if(mounted)setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);});}catch(e){if(mounted)setState(()=>error='Profile editing is available, but role requests need the latest website update. '+_message(e));}}catch(e){if(mounted)setState((){loading=false;error=_message(e);});}}
-  String _message(Object e){if(e is DioException){final d=e.response?.data;if(d is Map&&d['message']!=null)return d['message'].toString();}return e.toString().replaceFirst('Exception: ','');}
+  String _message(Object e)=>apiErrorMessage(e, fallback:'We could not complete this profile request. Please retry.');
   Future<void> _save() async {setState((){saving=true;error=null;notice=null;});try{final p=await widget.api.saveProfile(fullName:name.text.trim(),username:username.text.trim(),email:email.text.trim(),phone:phone.text.trim());if(!mounted)return;setState((){member={...member,...p};notice='Your profile details were saved.';saving=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);saving=false;});}}
   Future<void> _photo() async {
     try {
