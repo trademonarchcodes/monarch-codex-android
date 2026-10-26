@@ -39,9 +39,46 @@ String apiErrorMessage(Object error, {String fallback = 'The request could not b
   final response = error.response;
   final status = response?.statusCode;
   final data = response?.data;
-  // HTTP 409 is a state conflict (often a duplicate/already-completed action),
-  // not a raw exception to expose to members.
-  if (status == 409) return 'This action has already been processed or your account state has changed. Refresh the screen before trying again. If you were charged, do not pay again; contact Sovereign Desk support.';
+  // Resolve known conflict codes across the app before considering server text.
+  // A 409 can be a valid business rule (duplicate request, stale state, or insufficient
+  // funds), so never blindly retry it or present a raw DioException to members.
+  if (status == 409 && data is Map) {
+    final code = (data['error'] ?? data['code'] ?? '').toString().trim().toLowerCase();
+    const conflictMessages = <String, String>{
+      'username_taken': 'That username is already in use. Choose another one.',
+      'email_exists': 'An account with that email already exists. Sign in or recover your account instead.',
+      'account_exists': 'An account with that email or username already exists.',
+      'profile_conflict': 'That username or email is already in use. Change it and try again.',
+      'insufficient_balance': 'Your available wallet balance is not enough for this action. Refresh your balances before retrying. No payment should be repeated.',
+      'idempotency_conflict': 'This request reference was already used for a different action. Refresh your history and start a new request.',
+      'duplicate_transfer': 'This transfer was already processed. Refresh your transaction history before doing anything else.',
+      'duplicate_reference': 'That payment reference has already been submitted. Check your payment history before trying again.',
+      'duplicate_payment_reference': 'That payment reference has already been used. Check your transaction history.',
+      'already_reviewed': 'This item has already been reviewed. Refresh the list to see its current status.',
+      'request_already_reviewed': 'This request has already been reviewed. Refresh the list to see its current status.',
+      'already_requested': 'You already have an active request for this access. Check its status instead of submitting another.',
+      'event_full': 'All free-event places have been claimed.',
+      'signal_not_validated': 'This signal must be marked VALID before it can be published.',
+      'replay_not_allowed': 'Finish this lesson first. The replay option becomes available after completion.',
+      'replay_already_paid': 'Replay access has already been purchased. Refresh the Academy before paying again.',
+      'finish_current_lesson_first': 'Complete the current lesson in this category before moving forward.',
+      'open_video_first': 'Open the lesson video before marking it as finished.',
+      'request_pending': 'Your request is already waiting for review. You do not need to submit it again.',
+      'already_assigned': 'This role is already assigned to your account.',
+      'duplicate_role': 'That role name or key already exists.',
+      'role_setup_required': 'Role setup needs administrator attention. No further action is required from you.',
+      'already_connected': 'Your connection is already approved.',
+      'member_has_protected_records': 'This account has linked records that prevent deletion. No changes were committed.',
+      'category_exists': 'A category with that name already exists.',
+      'already_active': 'This access is already active. Refresh the page to see the latest status.',
+    };
+    final known = conflictMessages[code];
+    if (known != null) return known;
+    final serverMessage = data['message'];
+    if (serverMessage is String && serverMessage.trim().isNotEmpty) return serverMessage.trim();
+    return 'This action conflicts with the current account or item status. Refresh the screen and try again.';
+  }
+  if (status == 409) return 'This action conflicts with the current account or item status. Refresh the screen and try again. If this involved a payment, check your wallet and transaction history before retrying.';
   if (data is Map) {
     for (final key in const ['message', 'error_description', 'error']) {
       final value = data[key];
