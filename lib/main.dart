@@ -863,10 +863,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
       shortcut('Free Signals', 'Request free access and check eligibility with the team.', Icons.campaign_outlined, () => openRequest('Free Signals')),
       shortcut('Premium Signals', 'Ask about paid access and current subscription options.', Icons.workspace_premium_outlined, () => openRequest('Premium Access')),
       shortcut('Free Signal Slots & Countdown', 'Check confirmed availability and countdown details.', Icons.timer_outlined, () => openRequest('Free Signal Slots & Countdown')),
-      shortcut('Chat with Sovereign Desk Admin', 'Contact the team for access, support and trading questions.', Icons.forum_outlined, () async {
-        final uri = Uri(scheme: 'mailto', path: 'support@monarchcodex.online', queryParameters: {'subject': 'Monarch Codex — Sovereign Desk Chat', 'body': 'Monarch UID: ${widget.uid}\n\nMessage:'});
-        try { await launchUrl(uri); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email app unavailable. Contact support@monarchcodex.online.'))); }
-      }),
+      shortcut('Chat with Sovereign Desk Admin', 'Open the dedicated support screen.', Icons.forum_outlined, () => openRequest('Chat with Sovereign Desk Admin')),
       shortcut('Watchlist', 'Review instruments and notes from the desk.', Icons.visibility_outlined, () => openRequest('Watchlist')),
       shortcut('Trading Guidance & Academy', 'Continue learning through available tutorials and guidance.', Icons.school_outlined, () => openRequest('Trading Guidance')),
       shortcut('Other Sovereign Desk Services', 'Ask about mentorship and other available services.', Icons.grid_view_rounded, () => openRequest('Other Services')),
@@ -1345,7 +1342,7 @@ class _ShellState extends State<Shell> {
   Widget specialPage(String p, bool dark) {
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
-    if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
+    if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(api: widget.api, dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
     if (p == 'Transactions') return TransactionsPage(api: widget.api, dark: dark);
     if (p == 'Deposit') return DepositPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Withdraw') return WithdrawalPage(api: widget.api, dark: dark, onDone: refresh);
