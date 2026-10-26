@@ -1429,7 +1429,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   Future<void> update(String path,Map<String,dynamic> body)async{
     if(busy)return;
     setState(()=>busy=true);
-    try{await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message='Saved to the shared database.';future=_load();});}
+    try{final result=await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message=(result['message']??'Saved to the shared database.').toString();future=_load();});}
     catch(e){if(mounted)setState(()=>message=errorText(e));}
     finally{if(mounted)setState(()=>busy=false);}
   }
@@ -1476,7 +1476,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   }
   List<Widget> actions(Map<String,dynamic> x){
     final id=(x['id']??'').toString();
-    if(widget.section=='signals')return [if(x['validation_status']!='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'valid'}),child:const Text('Validate')),if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='invalid')OutlinedButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'invalid'}),child:const Text('Mark invalid'))];
+    if(widget.section=='signals')return [if(x['validation_status']!='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'valid'}),child:const Text('Validate & publish')),if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='invalid')OutlinedButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'invalid'}),child:const Text('Mark invalid'))];
     if(widget.section=='guidance')return [OutlinedButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
     if(widget.section=='events')return [OutlinedButton(onPressed:busy?null:()=>update('events/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('events/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
     if(widget.section=='governance')return [OutlinedButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'under_review','resolution_note':'Moved to review in Android app'}),child:const Text('Review')),FilledButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'resolved','resolution_note':'Resolved in Android app'}),child:const Text('Resolve'))];
