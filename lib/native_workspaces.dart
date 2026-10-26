@@ -33,13 +33,11 @@ Future<void> confirmAppExit(BuildContext context) async {
 }
 
 String _workspaceError(Object error) {
-  if (error is DioException) {
-    if (error.response?.statusCode == 409) return 'This item has already changed or been processed. Refresh the screen before trying again.';
-    final data = error.response?.data;
-    if (data is Map && data['message'] is String) return data['message'] as String;
-    if (error.response?.statusCode == 401) return 'Your session expired. Sign in again.';
-  }
-  return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
+  // Keep workspace screens consistent with the app-wide status/error mapping.
+  return apiErrorMessage(
+    error,
+    fallback: 'We could not complete this request. Check your connection and refresh before retrying.',
+  );
 }
 
 class AdminFeedbackPage extends StatefulWidget {
