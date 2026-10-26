@@ -39,6 +39,9 @@ String apiErrorMessage(Object error, {String fallback = 'The request could not b
   final response = error.response;
   final status = response?.statusCode;
   final data = response?.data;
+  // HTTP 409 is a state conflict (often a duplicate/already-completed action),
+  // not a raw exception to expose to members.
+  if (status == 409) return 'This action has already been processed or your account state has changed. Refresh the screen before trying again. If you were charged, do not pay again; contact Sovereign Desk support.';
   if (data is Map) {
     for (final key in const ['message', 'error_description', 'error']) {
       final value = data[key];
@@ -692,7 +695,7 @@ class _AcademyPageState extends State<AcademyPage> {
     if(busy.contains(id))return;setState(()=>busy.add(id));
     try{final r=await action();if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
       if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
-    }catch(e){if(mounted)setState(() { message=e.toString(); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
+    }catch(e){if(mounted)setState(() { message=apiErrorMessage(e,fallback:'We could not complete that Academy action. Refresh and check your access before retrying. If you were charged, do not pay again.'); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
   }
   List<Widget> _academyLessonWidgets(List<Map<String,dynamic>> lessons) {
     final widgets=<Widget>[];
@@ -769,16 +772,14 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
     final isFree = kind == 'Free Signals';
     final subject = isFree ? 'Free Signals Access Request' : 'Sovereign Desk Services Request';
     final body = 'Monarch Codex UID: ${widget.uid.isEmpty ? 'Not available' : widget.uid}\nRequest type: $kind\n\nMember message:\n${details.text.trim().isEmpty ? 'Please advise me on eligibility and next steps.' : details.text.trim()}\n\nPlease confirm eligibility, any applicable access requirements, and the request status.';
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'support@monarchcodex.online',
-      queryParameters: {'subject': 'Monarch Codex — $subject', 'body': body},
-    );
     try {
-      final opened = await launchUrl(uri);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(opened ? 'Your email app is opening. Send the message there to submit your request.' : 'Could not open an email app. Please contact support@monarchcodex.online.')));
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open an email app. Please contact support@monarchcodex.online.')));
+      await widget.api.submitFeedback(category: isFree ? 'free_signals' : 'support', title: subject, description: body);
+      if (mounted) {
+        details.clear();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your request was sent to Sovereign Desk. You can follow up through the in-app feedback/support area.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e, fallback: 'Your request was not sent. Please retry when your connection is stable.'))));
     } finally { if (mounted) setState(() => sending = false); }
   }
 
