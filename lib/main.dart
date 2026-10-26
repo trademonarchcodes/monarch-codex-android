@@ -773,7 +773,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
     final subject = isFree ? 'Free Signals Access Request' : 'Sovereign Desk Services Request';
     final body = 'Monarch Codex UID: ${widget.uid.isEmpty ? 'Not available' : widget.uid}\nRequest type: $kind\n\nMember message:\n${details.text.trim().isEmpty ? 'Please advise me on eligibility and next steps.' : details.text.trim()}\n\nPlease confirm eligibility, any applicable access requirements, and the request status.';
     try {
-      await widget.api.submitFeedback(category: isFree ? 'free_signals' : 'support', title: subject, description: body);
+      await widget.api.submitFeedback(category: 'other', title: subject, description: body);
       if (mounted) {
         details.clear();
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your request was sent to Sovereign Desk. You can follow up through the in-app feedback/support area.')));
