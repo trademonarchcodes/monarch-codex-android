@@ -781,7 +781,68 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
     } finally { if (mounted) setState(() => sending = false); }
   }
 
-  @override Widget build(BuildContext context) {
+  @override Widget build(BuildContext context) => widget.initialType == 'Sovereign Desk' ? _buildHub() : _buildRequestForm();
+
+  Widget _buildHub() {
+    final dark = widget.dark;
+    Widget shortcut(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(
+      color: dark ? panel : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: BorderSide(color: gold.withValues(alpha: .25))),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(children: [
+            Container(width: 46, height: 46, decoration: BoxDecoration(color: gold.withValues(alpha: .13), borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: gold, size: 25)),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(color: muted, fontSize: 11, height: 1.35)),
+            ])),
+            const Icon(Icons.chevron_right_rounded, color: gold),
+          ]),
+        ),
+      ),
+    );
+    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignRequestPage(dark: dark, uid: widget.uid, initialType: type)));
+    return ListView(padding: const EdgeInsets.all(15), children: [
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: gold.withValues(alpha: .55))),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: gold.withValues(alpha: .15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.support_agent_rounded, color: gold, size: 29)),
+          const SizedBox(height: 15),
+          const Text('SOVEREIGN DESK', style: TextStyle(color: gold, fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: .5)),
+          const SizedBox(height: 8),
+          const Text('Your home for trading signals, access, market tools and support.', style: TextStyle(color: muted, height: 1.5)),
+          const SizedBox(height: 15),
+          const Text('YOUR MONARCH UID', style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          const SizedBox(height: 4),
+          SelectableText(widget.uid.isEmpty ? 'UID unavailable' : widget.uid, style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+        ]),
+      ),
+      const SizedBox(height: 18),
+      const Text('QUICK ACCESS', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 11)),
+      const SizedBox(height: 8),
+      shortcut('Trading Signals', 'Browse signals and their entry, stop-loss and target details.', Icons.candlestick_chart_rounded, () => openRequest('Signal Access')),
+      shortcut('Free Signals', 'Request free access and check eligibility with the team.', Icons.campaign_outlined, () => openRequest('Free Signals')),
+      shortcut('Premium Signals', 'Ask about paid access and current subscription options.', Icons.workspace_premium_outlined, () => openRequest('Premium Access')),
+      shortcut('Free Signal Slots & Countdown', 'Check the limited offer and ask the team about remaining places.', Icons.timer_outlined, () => openRequest('Free Signals')),
+      shortcut('Chat with Sovereign Desk Admin', 'Contact the team for access, support and trading questions.', Icons.forum_outlined, () async {
+        final uri = Uri(scheme: 'mailto', path: 'support@monarchcodex.online', queryParameters: {'subject': 'Monarch Codex — Sovereign Desk Chat', 'body': 'Monarch UID: ${widget.uid}\n\nMessage:'});
+        try { await launchUrl(uri); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email app unavailable. Contact support@monarchcodex.online.'))); }
+      }),
+      shortcut('Watchlist', 'Open Market to review instruments you follow.', Icons.visibility_outlined, () => Navigator.of(context).pop()),
+      shortcut('Trading Guidance & Academy', 'Continue learning through available tutorials and guidance.', Icons.school_outlined, () => openRequest('Trading Guidance')),
+      shortcut('Other Sovereign Desk Services', 'Ask about mentorship and other available services.', Icons.grid_view_rounded, () => openRequest('Other Services')),
+      const SizedBox(height: 8),
+      const Text('Trading involves risk. Signals and guidance do not guarantee profits. Paid access and availability must be confirmed by the team.', style: TextStyle(color: muted, fontSize: 11, height: 1.5)),
+    ]);
+  }
+
+  Widget _buildRequestForm() {
     final dark = widget.dark;
     final isFree = kind == 'Free Signals';
     final title = isFree ? 'FREE SIGNALS' : 'SOVEREIGN DESK';
