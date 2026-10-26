@@ -33,12 +33,11 @@ Future<void> confirmAppExit(BuildContext context) async {
 }
 
 String _workspaceError(Object error) {
-  if (error is DioException) {
-    final data = error.response?.data;
-    if (data is Map && data['message'] is String) return data['message'] as String;
-    if (error.response?.statusCode == 401) return 'Your session expired. Sign in again.';
-  }
-  return 'We could not complete this request. Check your connection and try again. No wallet balance was changed.';
+  // Keep workspace screens consistent with the app-wide status/error mapping.
+  return apiErrorMessage(
+    error,
+    fallback: 'We could not complete this request. Check your connection and refresh before retrying.',
+  );
 }
 
 class AdminFeedbackPage extends StatefulWidget {
@@ -681,7 +680,7 @@ class _RoleManagerPageState extends State<RoleManagerPage>{
  late Future<Map<String,dynamic>> future; final roleName=TextEditingController(),roleDescription=TextEditingController(); String? error,notice; bool saving=false;
  @override void initState(){super.initState();future=widget.api.adminRoles();}
  void reload()=>setState(()=>future=widget.api.adminRoles());
- String msg(Object e){if(e is DioException&&e.response?.data is Map)return ((e.response!.data as Map)['message']??'Request failed').toString();return e.toString().replaceFirst('Exception: ','');}
+ String msg(Object e)=>apiErrorMessage(e,fallback:'This request could not be completed. Refresh and try again.');
  Future<void> save({int? id,String? name,String? description,bool active=true})async{setState(()=>saving=true);try{await widget.api.saveRole(roleId:id,roleName:name??roleName.text.trim(),description:description??roleDescription.text.trim(),isActive:active);roleName.clear();roleDescription.clear();if(mounted)setState(()=>notice='Role options saved.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}finally{if(mounted)setState(()=>saving=false);}}
  Future<void> review(int id,String decision)async{try{await widget.api.reviewRoleRequest(requestId:id,decision:decision);if(mounted)setState(()=>notice='Request reviewed.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}}
  Future<void> assign(int memberId,int roleId,String action)async{try{await widget.api.assignRole(memberId:memberId,roleId:roleId,action:action);if(mounted)setState(()=>notice=action=='assign'?'Role assigned.':'Role removed.');reload();}catch(e){if(mounted)setState(()=>error=msg(e));}}
@@ -754,9 +753,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
       await widget.api.requestSovereignPartner(companyName: company.text.trim(), message: message.text.trim());
       if (mounted) setState(() => notice = 'Partner request submitted for review.');
     } catch (e) {
-      if (mounted) setState(() => error = e is DioException && e.response?.data is Map
-          ? ((e.response!.data as Map)['message'] ?? 'Request failed').toString()
-          : e.toString());
+      if (mounted) setState(() => error = apiErrorMessage(e, fallback: 'Your request could not be submitted. Refresh and try again.'));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -1432,7 +1429,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   Future<void> update(String path,Map<String,dynamic> body)async{
     if(busy)return;
     setState(()=>busy=true);
-    try{await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message='Saved to the shared database.';future=_load();});}
+    try{final result=await widget.api.sovereignDeskUpdate(path,body);if(mounted)setState((){message=(result['message']??'Saved to the shared database.').toString();future=_load();});}
     catch(e){if(mounted)setState(()=>message=errorText(e));}
     finally{if(mounted)setState(()=>busy=false);}
   }
@@ -1479,7 +1476,7 @@ class _SovereignDeskSectionPageState extends State<SovereignDeskSectionPage>{
   }
   List<Widget> actions(Map<String,dynamic> x){
     final id=(x['id']??'').toString();
-    if(widget.section=='signals')return [if(x['validation_status']!='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'valid'}),child:const Text('Validate')),if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='invalid')OutlinedButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'invalid'}),child:const Text('Mark invalid'))];
+    if(widget.section=='signals')return [if(x['validation_status']!='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'valid'}),child:const Text('Validate & publish')),if(x['validation_status']=='valid')FilledButton(onPressed:busy?null:()=>update('signals/$id/status',{'status':x['status']=='published'?'closed':'published'}),child:Text(x['status']=='published'?'Close signal':'Publish')),if(x['validation_status']!='invalid')OutlinedButton(onPressed:busy?null:()=>update('signals/$id/validation',{'validation_status':'invalid'}),child:const Text('Mark invalid'))];
     if(widget.section=='guidance')return [OutlinedButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('guidance/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
     if(widget.section=='events')return [OutlinedButton(onPressed:busy?null:()=>update('events/$id/status',{'status':'archived'}),child:const Text('Archive')),FilledButton(onPressed:busy?null:()=>update('events/$id/status',{'status':x['status']=='published'?'draft':'published'}),child:Text(x['status']=='published'?'Unpublish':'Publish'))];
     if(widget.section=='governance')return [OutlinedButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'under_review','resolution_note':'Moved to review in Android app'}),child:const Text('Review')),FilledButton(onPressed:busy?null:()=>update('governance/$id/status',{'status':'resolved','resolution_note':'Resolved in Android app'}),child:const Text('Resolve'))];
@@ -1583,7 +1580,7 @@ class _AdminAcademyPageState extends State<AdminAcademyPage>{
     if(busy)return;
     setState(()=>busy=true);
     try{final r=await action();if(mounted){setState((){message=(r is Map?(r['message']??'Saved successfully.').toString():'Saved successfully.');messageOk=true;});reload();}}
-    catch(e){if(mounted)setState((){message=e.toString();messageOk=false;});}
+    catch(e){if(mounted)setState((){message=apiErrorMessage(e,fallback:'This Academy action could not be completed. Refresh and try again.');messageOk=false;});}
     finally{if(mounted)setState(()=>busy=false);}
   }
   Future<void> createCategory() async {

@@ -39,6 +39,46 @@ String apiErrorMessage(Object error, {String fallback = 'The request could not b
   final response = error.response;
   final status = response?.statusCode;
   final data = response?.data;
+  // Resolve known conflict codes across the app before considering server text.
+  // A 409 can be a valid business rule (duplicate request, stale state, or insufficient
+  // funds), so never blindly retry it or present a raw DioException to members.
+  if (status == 409 && data is Map) {
+    final code = (data['error'] ?? data['code'] ?? '').toString().trim().toLowerCase();
+    const conflictMessages = <String, String>{
+      'username_taken': 'That username is already in use. Choose another one.',
+      'email_exists': 'An account with that email already exists. Sign in or recover your account instead.',
+      'account_exists': 'An account with that email or username already exists.',
+      'profile_conflict': 'That username or email is already in use. Change it and try again.',
+      'insufficient_balance': 'Your available wallet balance is not enough for this action. Refresh your balances before retrying. No payment should be repeated.',
+      'idempotency_conflict': 'This request reference was already used for a different action. Refresh your history and start a new request.',
+      'duplicate_transfer': 'This transfer was already processed. Refresh your transaction history before doing anything else.',
+      'duplicate_reference': 'That payment reference has already been submitted. Check your payment history before trying again.',
+      'duplicate_payment_reference': 'That payment reference has already been used. Check your transaction history.',
+      'already_reviewed': 'This item has already been reviewed. Refresh the list to see its current status.',
+      'request_already_reviewed': 'This request has already been reviewed. Refresh the list to see its current status.',
+      'already_requested': 'You already have an active request for this access. Check its status instead of submitting another.',
+      'event_full': 'All free-event places have been claimed.',
+      'signal_not_validated': 'This signal must be marked VALID before it can be published.',
+      'replay_not_allowed': 'Finish this lesson first. The replay option becomes available after completion.',
+      'replay_already_paid': 'Replay access has already been purchased. Refresh the Academy before paying again.',
+      'finish_current_lesson_first': 'Complete the current lesson in this category before moving forward.',
+      'open_video_first': 'Open the lesson video before marking it as finished.',
+      'request_pending': 'Your request is already waiting for review. You do not need to submit it again.',
+      'already_assigned': 'This role is already assigned to your account.',
+      'duplicate_role': 'That role name or key already exists.',
+      'role_setup_required': 'Role setup needs administrator attention. No further action is required from you.',
+      'already_connected': 'Your connection is already approved.',
+      'member_has_protected_records': 'This account has linked records that prevent deletion. No changes were committed.',
+      'category_exists': 'A category with that name already exists.',
+      'already_active': 'This access is already active. Refresh the page to see the latest status.',
+    };
+    final known = conflictMessages[code];
+    if (known != null) return known;
+    final serverMessage = data['message'];
+    if (serverMessage is String && serverMessage.trim().isNotEmpty) return serverMessage.trim();
+    return 'This action conflicts with the current account or item status. Refresh the screen and try again.';
+  }
+  if (status == 409) return 'This action conflicts with the current account or item status. Refresh the screen and try again. If this involved a payment, check your wallet and transaction history before retrying.';
   if (data is Map) {
     for (final key in const ['message', 'error_description', 'error']) {
       final value = data[key];
@@ -281,13 +321,7 @@ class _WalletTransferPageState extends State<WalletTransferPage> {
     return '${hex.substring(0,8)}-${hex.substring(8,12)}-${hex.substring(12,16)}-${hex.substring(16,20)}-${hex.substring(20)}';
   }
 
-  String messageFrom(Object e) {
-    if (e is DioException && e.response?.data is Map) {
-      final value = (e.response!.data as Map)['message'];
-      if (value != null) return value.toString();
-    }
-    return e.toString().replaceFirst('Exception: ', '');
-  }
+  String messageFrom(Object e) => apiErrorMessage(e, fallback: 'The wallet request could not be completed. Refresh and try again.');
 
   Future<void> refreshBalances() async {
     try {
@@ -427,15 +461,7 @@ class _AuthPageState extends State<AuthPage> {
   bool register = false, accepted = false, busy = false, reveal = false;
   String error = '', notice = '';
   @override void dispose() { name.dispose(); email.dispose(); phone.dispose(); username.dispose(); password.dispose(); confirm.dispose(); referral.dispose(); super.dispose(); }
-  String problem(Object e) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      if (data is Map && data['message'] is String) return data['message'] as String;
-      if (e.response?.statusCode == 404) return 'The mobile service is not deployed yet.';
-      if (e.type == DioExceptionType.connectionError || e.type == DioExceptionType.connectionTimeout) return 'Connection failed. Check your internet and try again.';
-    }
-    return 'Something went wrong. Please try again.';
-  }
+  String problem(Object e) => apiErrorMessage(e, fallback: 'Something went wrong. Please try again.');
   Future<void> submit() async {
     FocusScope.of(context).unfocus();
     if (!keyForm.currentState!.validate()) return;
@@ -601,9 +627,7 @@ class _InvestmentsPageState extends State<InvestmentsPage> {
       reload();
     }catch(e){
       if(!mounted)return;
-      var message='Purchase could not be completed. The server did not confirm a successful transaction.';
-      if(e is DioException){final data=e.response?.data;if(data is Map&&data['message']!=null)message=data['message'].toString();}
-      else message=e.toString().replaceFirst('Exception: ','');
+      final message=apiErrorMessage(e, fallback:'Purchase could not be completed. The server did not confirm a successful transaction. Check your transaction history before retrying.');
       await showDialog<void>(context:context,builder:(ctx)=>AlertDialog(
         title:const Row(children:[Icon(Icons.error_outline,color:Colors.redAccent,size:26),SizedBox(width:8),Expanded(child:Text('Purchase not completed'))]),
         content:Text(message),
@@ -682,17 +706,21 @@ class _AcademyPageState extends State<AcademyPage> {
   late Future<Map<String,dynamic>> future;
   final Set<int> opened = <int>{};
   final Set<int> busy = <int>{};
+  // Keep a replay key stable across retries so an uncertain network response cannot
+  // accidentally turn a retry into a second $2 charge for the same lesson.
+  final Map<int, String> replayKeys = <int, String>{};
   String? message;
   bool success = true;
   @override void initState(){super.initState();future=widget.api.academy();}
   void reload(){setState(()=>future=widget.api.academy());}
   String academyKey(){final r=math.Random.secure();final b=List<int>.generate(16,(_)=>r.nextInt(256));b[6]=(b[6]&0x0f)|0x40;b[8]=(b[8]&0x3f)|0x80;final h=b.map((v)=>v.toRadixString(16).padLeft(2,'0')).join();return h.substring(0,8)+'-'+h.substring(8,12)+'-'+h.substring(12,16)+'-'+h.substring(16,20)+'-'+h.substring(20);}
+  String replayKeyFor(int lessonId)=>replayKeys.putIfAbsent(lessonId,academyKey);
 
   Future<void> act(int id,Future<Map<String,dynamic>> Function() action,{bool watch=false,bool complete=false})async{
     if(busy.contains(id))return;setState(()=>busy.add(id));
-    try{final r=await action();if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
+    try{final r=await action();if(r['replayReady']==true)replayKeys.remove(id);if(watch){final u=Uri.tryParse((r['videoUrl']??'').toString());if(u==null||!u.hasScheme)throw Exception('Video link unavailable');await launchUrl(u,mode:LaunchMode.externalApplication);opened.add(id);}if(complete)opened.remove(id);
       if(mounted){setState(() { message=(r['message']??(complete?'Lesson completed.':watch?'Video opened.':'Payment successful.')).toString(); success=true; });reload();}
-    }catch(e){if(mounted)setState(() { message=e.toString(); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
+    }catch(e){if(mounted)setState(() { message=apiErrorMessage(e,fallback:'We could not complete that Academy action. Refresh and check your access before retrying. If you were charged, do not pay again.'); success=false; });}finally{if(mounted)setState(()=>busy.remove(id));}
   }
   List<Widget> _academyLessonWidgets(List<Map<String,dynamic>> lessons) {
     final widgets=<Widget>[];
@@ -718,7 +746,7 @@ class _AcademyPageState extends State<AcademyPage> {
         if((l['description']??'').toString().isNotEmpty)Padding(padding:const EdgeInsets.only(top:8),child:Text(l['description'].toString(),style:const TextStyle(color:muted))),
         const SizedBox(height:8),Text(done?(fee?'Previous video · \$2 replay fee':ready?'Replay paid · ready to open':'Lesson completed'):can?'Current lesson':'Finish the current lesson in this category first',style:const TextStyle(color:gold,fontWeight:FontWeight.w800,fontSize:12)),
         const SizedBox(height:9),Wrap(spacing:8,runSpacing:8,children:[
-          if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:academyKey())),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
+          if(can&&done&&fee)FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.replayAcademyLesson(lessonId:id,idempotencyKey:replayKeyFor(id))),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:Text(wait?'Processing…':'Pay \$2 to replay')),
           if(can&&(!done||ready))OutlinedButton.icon(onPressed:wait?null:()=>act(id,()=>widget.api.watchAcademyLesson(id),watch:true),icon:const Icon(Icons.play_arrow),label:Text(wait?'Opening…':'Watch video')),
           if(can&&!done&&opened.contains(id))FilledButton(onPressed:wait?null:()=>act(id,()=>widget.api.completeAcademyLesson(id),complete:true),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink),child:const Text('Mark video finished'))
         ])
@@ -769,16 +797,14 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
     final isFree = kind == 'Free Signals';
     final subject = isFree ? 'Free Signals Access Request' : 'Sovereign Desk Services Request';
     final body = 'Monarch Codex UID: ${widget.uid.isEmpty ? 'Not available' : widget.uid}\nRequest type: $kind\n\nMember message:\n${details.text.trim().isEmpty ? 'Please advise me on eligibility and next steps.' : details.text.trim()}\n\nPlease confirm eligibility, any applicable access requirements, and the request status.';
-    final uri = Uri(
-      scheme: 'mailto',
-      path: 'support@monarchcodex.online',
-      queryParameters: {'subject': 'Monarch Codex — $subject', 'body': body},
-    );
     try {
-      final opened = await launchUrl(uri);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(opened ? 'Your email app is opening. Send the message there to submit your request.' : 'Could not open an email app. Please contact support@monarchcodex.online.')));
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open an email app. Please contact support@monarchcodex.online.')));
+      await widget.api.submitFeedback(category: 'other', title: subject, description: body);
+      if (mounted) {
+        details.clear();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Your request was sent to Sovereign Desk. You can follow up through the in-app feedback/support area.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e, fallback: 'Your request was not sent. Please retry when your connection is stable.'))));
     } finally { if (mounted) setState(() => sending = false); }
   }
 
@@ -839,7 +865,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         ),
       ),
     );
-    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid)));
+    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid, api: widget.api)));
     return ListView(padding: const EdgeInsets.all(15), children: [
       Container(
         padding: const EdgeInsets.all(20),
@@ -922,8 +948,8 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
 
 
 class SovereignNativeSectionPage extends StatefulWidget {
-  const SovereignNativeSectionPage({super.key, required this.type, required this.dark, required this.uid});
-  final String type; final bool dark; final String uid;
+  const SovereignNativeSectionPage({super.key, required this.type, required this.dark, required this.uid, required this.api});
+  final String type; final bool dark; final String uid; final MonarchApi api;
   @override State<SovereignNativeSectionPage> createState()=>_SovereignNativeSectionPageState();
 }
 class _SovereignNativeSectionPageState extends State<SovereignNativeSectionPage> {
@@ -934,7 +960,7 @@ class _SovereignNativeSectionPageState extends State<SovereignNativeSectionPage>
   IconData get icon {switch(widget.type){case 'Signal Access':return Icons.candlestick_chart_rounded;case 'Free Signals':return Icons.campaign_rounded;case 'Premium Access':return Icons.workspace_premium_rounded;case 'Free Signal Slots':return Icons.timer_rounded;case 'Admin Chat':return Icons.forum_rounded;case 'Watchlist':return Icons.visibility_rounded;case 'Trading Guidance':return Icons.school_rounded;default:return Icons.grid_view_rounded;}}
   String get title {switch(widget.type){case 'Signal Access':return 'TRADING SIGNALS';case 'Free Signals':return 'FREE SIGNALS';case 'Premium Access':return 'PREMIUM SIGNALS';case 'Free Signal Slots':return 'FREE SIGNAL SLOTS';case 'Admin Chat':return 'SOVEREIGN DESK CHAT';case 'Watchlist':return 'YOUR WATCHLIST';case 'Trading Guidance':return 'TRADING GUIDANCE';default:return 'MORE SERVICES';}}
   String get description {switch(widget.type){case 'Signal Access':return 'Live signal records are not displayed unless a verified feed is available. No entries or targets are fabricated.';case 'Free Signals':return 'Request a review for free signal access. Eligibility and request status must be confirmed by the team.';case 'Premium Access':return 'Ask about current premium access. No price or performance promise is assumed.';case 'Free Signal Slots':return 'Current slot counts and countdowns require verified live data; this screen will not invent availability.';case 'Admin Chat':return 'Send a message to the Sovereign Desk team with your Monarch UID.';case 'Watchlist':return 'Manage instruments you want to follow. This native list is session-only until persistent storage is added.';case 'Trading Guidance':return 'Learn risk management, position sizing, market structure and trading psychology.';default:return 'Choose a service and contact the team for current availability and eligibility.';}}
-  Future<void> contact() async {if(busy)return;setState(()=>busy=true);final uri=Uri(scheme:'mailto',path:'support@monarchcodex.online',queryParameters:{'subject':'Monarch Codex — '+title,'body':'Monarch UID: '+(widget.uid.isEmpty?'Unavailable':widget.uid)+'\\nSection: '+widget.type+'\\n\\n'+message.text.trim()});try{final ok=await launchUrl(uri);if(mounted)setState(()=>status=ok?'Email app opened. Send the message there to contact the team.':'No email app available. Contact support@monarchcodex.online.');}catch(_){if(mounted)setState(()=>status='No email app available. Contact support@monarchcodex.online.');}finally{if(mounted)setState(()=>busy=false);}}
+  Future<void> contact() async {if(busy)return;final body=message.text.trim();if(body.length<5){setState(()=>status='Please enter a message of at least 5 characters.');return;}setState(()=>busy=true);try{await widget.api.submitFeedback(category:'other',title:'Sovereign Desk Support — '+title,description:'Monarch UID: '+(widget.uid.isEmpty?'Unavailable':widget.uid)+'\\nSection: '+widget.type+'\\n\\nMember message:\\n'+body);if(mounted){message.clear();setState(()=>status='Message sent to Sovereign Desk. You can track the request in Feedback & Suggestions.');}}catch(e){if(mounted)setState(()=>status=apiErrorMessage(e,fallback:'Message could not be sent. Please check your connection and try again.'));}finally{if(mounted)setState(()=>busy=false);}}
   @override Widget build(BuildContext context){final dark=widget.dark;final card=dark?panel:Colors.white;final fg=dark?Colors.white:ink;return ListView(padding:const EdgeInsets.all(16),children:[
     Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(borderRadius:BorderRadius.circular(23),border:Border.all(color:gold.withValues(alpha:.65)),gradient:LinearGradient(colors:dark?const [Color(0xFF30250C),Color(0xFF151518),Color(0xFF09090B)]:const [Color(0xFFFFF4CC),Colors.white,Color(0xFFF4EFE0)])),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Container(width:54,height:54,decoration:BoxDecoration(color:gold.withValues(alpha:.17),borderRadius:BorderRadius.circular(15)),child:Icon(icon,color:gold,size:30)),const SizedBox(height:15),Text(title,style:const TextStyle(color:gold,fontSize:22,fontWeight:FontWeight.w900,letterSpacing:.5)),const SizedBox(height:8),Text(description,style:TextStyle(color:dark?Colors.white70:Colors.black54,height:1.5,fontSize:13)),const SizedBox(height:14),Text('MONARCH UID  •  '+(widget.uid.isEmpty?'Unavailable':widget.uid),style:const TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11))])),
     const SizedBox(height:16),
@@ -1648,7 +1674,7 @@ class _ProfileEditorPageState extends State<ProfileEditorPage> {
   @override void initState(){super.initState();member=Map<String,dynamic>.from(widget.member);_setControllers(member);_load();}
   void _setControllers(Map<String,dynamic> m){name.text=(m['fullName']??'').toString();username.text=(m['username']??'').toString();email.text=(m['email']??'').toString();phone.text=(m['phone']??'').toString();}
   Future<void> _load() async {try{final p=await widget.api.profile();if(!mounted)return;setState((){member=p;_setControllers(p);loading=false;});try{final r=await widget.api.roles();if(mounted)setState((){roles=List<dynamic>.from(r['roles']??[]);requests=List<dynamic>.from(r['requests']??[]);});}catch(e){if(mounted)setState(()=>error='Profile editing is available, but role requests need the latest website update. '+_message(e));}}catch(e){if(mounted)setState((){loading=false;error=_message(e);});}}
-  String _message(Object e){if(e is DioException){final d=e.response?.data;if(d is Map&&d['message']!=null)return d['message'].toString();}return e.toString().replaceFirst('Exception: ','');}
+  String _message(Object e)=>apiErrorMessage(e, fallback:'We could not complete this profile request. Please retry.');
   Future<void> _save() async {setState((){saving=true;error=null;notice=null;});try{final p=await widget.api.saveProfile(fullName:name.text.trim(),username:username.text.trim(),email:email.text.trim(),phone:phone.text.trim());if(!mounted)return;setState((){member={...member,...p};notice='Your profile details were saved.';saving=false;});widget.onUpdated();}catch(e){if(mounted)setState((){error=_message(e);saving=false;});}}
   Future<void> _photo() async {
     try {
