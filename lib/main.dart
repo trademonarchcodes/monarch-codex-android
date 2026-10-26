@@ -747,7 +747,8 @@ class _AcademyPageState extends State<AcademyPage> {
 }
 
 class SovereignRequestPage extends StatefulWidget {
-  const SovereignRequestPage({super.key, required this.dark, required this.uid, required this.initialType});
+  const SovereignRequestPage({super.key, required this.api, required this.dark, required this.uid, required this.initialType});
+  final MonarchApi api;
   final bool dark;
   final String uid;
   final String initialType;
@@ -781,7 +782,39 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
     } finally { if (mounted) setState(() => sending = false); }
   }
 
-  @override Widget build(BuildContext context) => widget.initialType == 'Sovereign Desk' ? _buildHub() : _buildRequestForm();
+  @override Widget build(BuildContext context) {
+    if (widget.initialType == 'Sovereign Desk') return _buildHub();
+    if (widget.initialType == 'Signal Access' || widget.initialType == 'Watchlist' || widget.initialType == 'Trading Guidance') return _buildNativeDataScreen();
+    if (widget.initialType == 'Free Signal Slots & Countdown') return _buildSlotsScreen();
+    if (widget.initialType == 'Premium Access') return _buildPremiumScreen();
+    if (widget.initialType == 'Chat with Sovereign Desk Admin') return _buildChatScreen();
+    if (widget.initialType == 'Other Services') return _buildOtherServicesScreen();
+    return _buildRequestForm();
+  }
+  Widget _nativeHero(String title,String subtitle,IconData icon)=>Container(padding:const EdgeInsets.all(20),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(22),border:Border.all(color:gold.withValues(alpha:.5))),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Container(padding:const EdgeInsets.all(13),decoration:BoxDecoration(color:gold.withValues(alpha:.15),borderRadius:BorderRadius.circular(15)),child:Icon(icon,color:gold,size:30)),const SizedBox(height:15),Text(title,style:const TextStyle(color:gold,fontSize:22,fontWeight:FontWeight.w900,letterSpacing:.5)),const SizedBox(height:7),Text(subtitle,style:const TextStyle(color:muted,fontSize:13,height:1.5)),const SizedBox(height:12),Text('MONARCH UID: '+(widget.uid.isEmpty?'Unavailable':widget.uid),style:const TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11))]));
+  Widget _nativeCard(String title,String body,IconData icon)=>Container(margin:const EdgeInsets.only(bottom:10),padding:const EdgeInsets.all(15),decoration:BoxDecoration(color:widget.dark?panel:Colors.white,borderRadius:BorderRadius.circular(17),border:Border.all(color:gold.withValues(alpha:.23))),child:Row(crossAxisAlignment:CrossAxisAlignment.start,children:[Icon(icon,color:gold,size:25),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontWeight:FontWeight.w900,fontSize:14)),const SizedBox(height:5),Text(body,style:const TextStyle(color:muted,fontSize:12,height:1.45))]))]));
+  Future<Map<String,dynamic>> _loadNativeSection(String section)=>api.sovereignDeskSection(section);
+  Widget _buildNativeDataScreen(){
+    final title=widget.initialType=='Watchlist'?'YOUR WATCHLIST':widget.initialType=='Trading Guidance'?'TRADING GUIDANCE':'TRADING SIGNALS';
+    final icon=widget.initialType=='Watchlist'?Icons.visibility_outlined:widget.initialType=='Trading Guidance'?Icons.school_outlined:Icons.candlestick_chart_rounded;
+    final section=widget.initialType=='Watchlist'?'watchlist':widget.initialType=='Trading Guidance'?'guidance':'signals';
+    return FutureBuilder<Map<String,dynamic>>(future:_loadNativeSection(section),builder:(context,s){
+      final raw=s.data?['items']??s.data?['signals']??s.data?['lessons']??s.data?['records'];final items=raw is List?raw.whereType<Map>().toList():const [];
+      return ListView(padding:const EdgeInsets.all(15),children:[
+        _nativeHero(title,widget.initialType=='Watchlist'?'Review instruments and notes provided by the desk.':widget.initialType=='Trading Guidance'?'Learning notes and guidance published by the team.':'Published signal details delivered from the service API.',icon),
+        const SizedBox(height:18),Row(children:[const Expanded(child:Text('LATEST UPDATES',style:TextStyle(fontWeight:FontWeight.w900,letterSpacing:1,fontSize:12))),IconButton(onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded,color:gold))]),
+        if(s.connectionState==ConnectionState.waiting)const Padding(padding:EdgeInsets.all(25),child:Center(child:CircularProgressIndicator(color:gold))),
+        if(s.hasError)_nativeCard('Could not load live data','Check your connection and tap refresh. The screen is native; data is requested through the service API.',Icons.cloud_off_outlined),
+        if(s.connectionState==ConnectionState.done&&!s.hasError&&items.isEmpty)_nativeCard('Nothing available yet','The service returned no published items. No sample signals or fake prices are shown.',Icons.inbox_outlined),
+        ...items.map((item){final x=Map<String,dynamic>.from(item);final heading=(x['title']??x['asset_pair']??x['instrument']??x['symbol']??x['name']??'Desk update').toString();final status=(x['direction']??x['status']??x['type']??'Update').toString();final body=(x['explanation']??x['notes']??x['description']??'Details supplied by the service.').toString();return _nativeCard(heading,status+'\\n'+body,icon);}),
+        const Text('Trading involves risk. Signals and guidance do not guarantee profits.',style:TextStyle(color:muted,fontSize:11,height:1.5))
+      ]);
+    });
+  }
+  Widget _buildSlotsScreen()=>ListView(padding:const EdgeInsets.all(15),children:[_nativeHero('FREE SIGNAL SLOTS','Availability is shown only when confirmed by the server.',Icons.timer_outlined),const SizedBox(height:18),FutureBuilder<Map<String,dynamic>>(future:_loadNativeSection('access'),builder:(context,s){if(s.connectionState==ConnectionState.waiting)return const Center(child:CircularProgressIndicator(color:gold));if(s.hasError)return _nativeCard('Availability unavailable','Could not retrieve current availability. Check your connection.',Icons.cloud_off_outlined);final d=s.data??{};return _nativeCard('Server-reported availability',(d['slots_remaining']??d['remaining_slots']??d['message']??'No confirmed slot count or countdown was returned.').toString(),Icons.hourglass_empty_rounded);}),_nativeCard('No invented countdowns','This screen will not guess remaining places, deadlines or eligibility.',Icons.verified_user_outlined),FilledButton.icon(onPressed:()=>setState((){}),icon:const Icon(Icons.refresh_rounded),label:const Text('Refresh availability'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink))]);
+  Widget _buildPremiumScreen()=>ListView(padding:const EdgeInsets.all(15),children:[_nativeHero('PREMIUM SIGNALS','Premium access details and approval guidance.',Icons.workspace_premium_outlined),const SizedBox(height:18),_nativeCard('Confirm current pricing','No subscription price is invented here. Ask the team to confirm official plans and eligibility before paying.',Icons.receipt_long_outlined),_nativeCard('Risk reminder','Signals do not guarantee profits. Use official access instructions.',Icons.shield_outlined),_buildRequestForm()]);
+  Widget _buildChatScreen()=>ListView(padding:const EdgeInsets.all(15),children:[_nativeHero('SOVEREIGN DESK SUPPORT','A dedicated native support composer for your question.',Icons.forum_outlined),const SizedBox(height:18),_nativeCard('Member support','Your UID is included in the support handoff. The current app does not have a verified member-chat endpoint, so it will not pretend messages were delivered in-app.',Icons.support_agent_rounded),_buildRequestForm()]);
+  Widget _buildOtherServicesScreen()=>ListView(padding:const EdgeInsets.all(15),children:[_nativeHero('OTHER SERVICES','Request mentorship, learning support or information about other Sovereign Desk services.',Icons.grid_view_rounded),const SizedBox(height:18),_nativeCard('Mentorship','Ask about learning support and current availability.',Icons.school_outlined),_nativeCard('Trading guidance','Ask about trading concepts and risk management.',Icons.lightbulb_outline_rounded),_nativeCard('Access and eligibility','Request official approval steps and applicable fees.',Icons.verified_user_outlined),_buildRequestForm()]);
 
   Widget _buildHub() {
     final dark = widget.dark;
@@ -806,7 +839,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         ),
       ),
     );
-    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignRequestPage(dark: dark, uid: widget.uid, initialType: type)));
+    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignRequestPage(api: widget.api, dark: dark, uid: widget.uid, initialType: type)));
     return ListView(padding: const EdgeInsets.all(15), children: [
       Container(
         padding: const EdgeInsets.all(20),
@@ -829,12 +862,12 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
       shortcut('Trading Signals', 'Browse signals and their entry, stop-loss and target details.', Icons.candlestick_chart_rounded, () => openRequest('Signal Access')),
       shortcut('Free Signals', 'Request free access and check eligibility with the team.', Icons.campaign_outlined, () => openRequest('Free Signals')),
       shortcut('Premium Signals', 'Ask about paid access and current subscription options.', Icons.workspace_premium_outlined, () => openRequest('Premium Access')),
-      shortcut('Free Signal Slots & Countdown', 'Check the limited offer and ask the team about remaining places.', Icons.timer_outlined, () => openRequest('Free Signals')),
+      shortcut('Free Signal Slots & Countdown', 'Check confirmed availability and countdown details.', Icons.timer_outlined, () => openRequest('Free Signal Slots & Countdown')),
       shortcut('Chat with Sovereign Desk Admin', 'Contact the team for access, support and trading questions.', Icons.forum_outlined, () async {
         final uri = Uri(scheme: 'mailto', path: 'support@monarchcodex.online', queryParameters: {'subject': 'Monarch Codex — Sovereign Desk Chat', 'body': 'Monarch UID: ${widget.uid}\n\nMessage:'});
         try { await launchUrl(uri); } catch (_) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Email app unavailable. Contact support@monarchcodex.online.'))); }
       }),
-      shortcut('Watchlist', 'Open Market to review instruments you follow.', Icons.visibility_outlined, () => Navigator.of(context).pop()),
+      shortcut('Watchlist', 'Review instruments and notes from the desk.', Icons.visibility_outlined, () => openRequest('Watchlist')),
       shortcut('Trading Guidance & Academy', 'Continue learning through available tutorials and guidance.', Icons.school_outlined, () => openRequest('Trading Guidance')),
       shortcut('Other Sovereign Desk Services', 'Ask about mentorship and other available services.', Icons.grid_view_rounded, () => openRequest('Other Services')),
       const SizedBox(height: 8),
