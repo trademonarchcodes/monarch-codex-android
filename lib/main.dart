@@ -942,7 +942,47 @@ class _SovereignNativeSectionPageState extends State<SovereignNativeSectionPage>
     if(widget.type=='Free Signal Slots') _info(card,fg,Icons.verified_user_outlined,'ELIGIBILITY','Ask the team to confirm your eligibility and current slot availability.'),
     if(widget.type=='Premium Access') _info(card,fg,Icons.lock_outline_rounded,'ACCESS STATUS','Any applicable price and approval requirements must be confirmed by the Sovereign Desk.'),
     if(widget.type=='Trading Guidance') ...[_info(card,fg,Icons.shield_outlined,'MANAGE RISK','Set your maximum loss before entering a trade. Never treat signals as guaranteed outcomes.'),_info(card,fg,Icons.school_outlined,'ACADEMY','Open Academy from the main app navigation for lessons available to your account.')],
-    if(widget.type=='Watchlist') ...[Text('SAVED INSTRUMENTS',style:TextStyle(color:fg,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:8),...saved.map((v)=>Card(color:card,child:ListTile(leading:const Icon(Icons.show_chart,color:gold),title:Text(v,style:TextStyle(color:fg,fontWeight:FontWeight.w900)),subtitle:const Text('Price feed not connected on this screen',style:TextStyle(color:muted,fontSize:11)),trailing:IconButton(icon:const Icon(Icons.delete_outline,color:Colors.redAccent),onPressed:()=>setState(()=>saved.remove(v))))),OutlinedButton.icon(onPressed:()async{final c=TextEditingController();final v=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(title:const Text('Add instrument'),content:TextField(controller:c,textCapitalization:TextCapitalization.characters,decoration:const InputDecoration(hintText:'e.g. GBP/USD')),actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),FilledButton(onPressed:()=>Navigator.pop(ctx,c.text.trim().toUpperCase()),child:const Text('Add'))]));if(v!=null&&v.isNotEmpty&&!saved.contains(v))setState(()=>saved.add(v));},icon:const Icon(Icons.add),label:const Text('Add instrument'))],
+    if (widget.type == 'Watchlist') ...[
+      Text('SAVED INSTRUMENTS', style: TextStyle(color: fg, fontWeight: FontWeight.w900, letterSpacing: 1)),
+      const SizedBox(height: 8),
+      ...saved.map((symbol) => Card(
+        color: card,
+        child: ListTile(
+          leading: const Icon(Icons.show_chart, color: gold),
+          title: Text(symbol, style: TextStyle(color: fg, fontWeight: FontWeight.w900)),
+          subtitle: const Text('Price feed not connected on this screen', style: TextStyle(color: muted, fontSize: 11)),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            onPressed: () => setState(() { saved.remove(symbol); }),
+          ),
+        ),
+      )),
+      OutlinedButton.icon(
+        onPressed: () async {
+          final controller = TextEditingController();
+          final value = await showDialog<String>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Add instrument'),
+              content: TextField(
+                controller: controller,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(hintText: 'e.g. GBP/USD'),
+              ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+                FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim().toUpperCase()), child: const Text('Add')),
+              ],
+            ),
+          );
+          if (value != null && value.isNotEmpty && !saved.contains(value)) {
+            setState(() => saved.add(value));
+          }
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add instrument'),
+      ),
+    ],
     if(widget.type!='Watchlist') ...[const SizedBox(height:8),Text('MESSAGE THE TEAM',style:TextStyle(color:fg,fontWeight:FontWeight.w900,letterSpacing:1)),const SizedBox(height:8),TextField(controller:message,maxLines:3,maxLength:1000,decoration:InputDecoration(hintText:'Add details (optional)',filled:true,fillColor:card,border:OutlineInputBorder(borderRadius:BorderRadius.circular(14)))),const SizedBox(height:8),SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:busy?null:contact,icon:const Icon(Icons.support_agent_rounded),label:Text(busy?'Opening…':'Contact Sovereign Desk'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink,padding:const EdgeInsets.symmetric(vertical:15))))],
     if(status!=null)Padding(padding:const EdgeInsets.only(top:12),child:Text(status!,style:const TextStyle(color:muted,fontSize:12))),const SizedBox(height:12),const Text('Trading involves risk. Signals and education do not guarantee profits.',style:TextStyle(color:muted,fontSize:11,height:1.5))
   ]);}
