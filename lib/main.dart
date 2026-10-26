@@ -839,7 +839,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         ),
       ),
     );
-    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignRequestPage(api: widget.api, dark: dark, uid: widget.uid, initialType: type)));
+    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid)));
     return ListView(padding: const EdgeInsets.all(15), children: [
       Container(
         padding: const EdgeInsets.all(20),
@@ -862,8 +862,8 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
       shortcut('Trading Signals', 'Browse signals and their entry, stop-loss and target details.', Icons.candlestick_chart_rounded, () => openRequest('Signal Access')),
       shortcut('Free Signals', 'Request free access and check eligibility with the team.', Icons.campaign_outlined, () => openRequest('Free Signals')),
       shortcut('Premium Signals', 'Ask about paid access and current subscription options.', Icons.workspace_premium_outlined, () => openRequest('Premium Access')),
-      shortcut('Free Signal Slots & Countdown', 'Check confirmed availability and countdown details.', Icons.timer_outlined, () => openRequest('Free Signal Slots & Countdown')),
-      shortcut('Chat with Sovereign Desk Admin', 'Open the dedicated support screen.', Icons.forum_outlined, () => openRequest('Chat with Sovereign Desk Admin')),
+      shortcut('Free Signal Slots & Countdown', 'Check eligibility and confirm current availability.', Icons.timer_outlined, () => openRequest('Free Signal Slots')),
+      shortcut('Chat with Sovereign Desk Admin', 'Open the dedicated native support screen.', Icons.forum_outlined, () => openRequest('Admin Chat')),
       shortcut('Watchlist', 'Review instruments and notes from the desk.', Icons.visibility_outlined, () => openRequest('Watchlist')),
       shortcut('Trading Guidance & Academy', 'Continue learning through available tutorials and guidance.', Icons.school_outlined, () => openRequest('Trading Guidance')),
       shortcut('Other Sovereign Desk Services', 'Ask about mentorship and other available services.', Icons.grid_view_rounded, () => openRequest('Other Services')),
