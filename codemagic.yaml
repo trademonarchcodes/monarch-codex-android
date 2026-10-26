@@ -15,7 +15,7 @@ workflows:
     scripts:
       - name: Generate Android project files
         script: |
-          flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+          flutter create --platforms=android --project-name mobile --org online.monarchcodex .
       - name: Configure permanent Android release signing
         script: |
           python3 - <<'PY'
@@ -110,7 +110,7 @@ workflows:
           APK="build/app/outputs/flutter-apk/app-release.apk"
           test -s "$APK"
           shasum -a 256 "$APK" | tee build/app/outputs/flutter-apk/app-release.apk.sha256
-      - name: Publish latest APK release for in-app updates
+      - name: Publish migration APK release for in-app updates
         script: |
           set -e
           if [ -z "${MONARCH_ANDROID_RELEASE_TOKEN:-}" ]; then
@@ -133,7 +133,7 @@ workflows:
           if not match:
               raise SystemExit("Could not read version from pubspec.yaml")
           version = match.group(1)
-          body = "Version: " + version + "\nMandatory: false\n\nMonarch Codex Android release. Includes the latest mobile admin navigation and updater improvements."
+          body = "Version: " + version + "\nMandatory: false\n\nMonarch Codex Android migration app. This build uses a separate Android application identity because the previous signing identity is unavailable. Install side-by-side with the legacy app."
           api = "https://api.github.com/repos/" + owner_repo
           headers = {
               "Authorization": "Bearer " + token,
@@ -157,21 +157,21 @@ workflows:
                   raise SystemExit("GitHub release publishing failed (HTTP " + str(exc.code) + "): " + detail)
 
           try:
-              release = request(api + "/releases/tags/latest-apk")
+              release = request(api + "/releases/tags/migration-apk")
           except SystemExit as exc:
               if "HTTP 404" not in str(exc):
                   raise
               release = request(api + "/releases", "POST", json.dumps({
-                  "tag_name": "latest-apk",
+                  "tag_name": "migration-apk",
                   "target_commitish": "main",
-                  "name": "Monarch Codex Android — Latest",
+                  "name": "Monarch Codex Android — Migration",
                   "body": body,
                   "draft": False,
                   "prerelease": False,
               }).encode())
           else:
               release = request(api + "/releases/" + str(release["id"]), "PATCH", json.dumps({
-                  "name": "Monarch Codex Android — Latest",
+                  "name": "Monarch Codex Android — Migration",
                   "body": body,
                   "draft": False,
                   "prerelease": False,
@@ -207,7 +207,7 @@ workflows:
                   detail = exc.read().decode("utf-8", "replace")[:500]
                   raise SystemExit("Could not upload " + path.name + " (HTTP " + str(exc.code) + "): " + detail)
               print("Published release asset: " + path.name)
-          print("Published in-app update release version " + version)
+          print("Published migration-channel in-app update version " + version)
           PY
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
