@@ -98,9 +98,15 @@ workflows:
         script: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path("android/app/src/main/AndroidManifest.xml")
-          s = p.read_text().replace('android:label="monarch_codex"', 'android:label="Monarch Codex"')
+          s = p.read_text()
+          s, count = re.subn(r'android:label="[^"]*"', 'android:label="Monarch Codex"', s, count=1)
+          if count == 0:
+              s, count = re.subn(r'(<application\\b)', r'\\1 android:label="Monarch Codex"', s, count=1)
+          assert count == 1, "Could not set Monarch Codex app display name in Android manifest"
           p.write_text(s)
+          assert 'android:label="Monarch Codex"' in p.read_text()
           PY
       - name: Build release APK
         script: flutter build apk --release
