@@ -15,7 +15,7 @@ workflows:
     scripts:
       - name: Generate Android project files
         script: |
-          flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
+          flutter create --platforms=android --project-name mobile --org online.monarchcodex .
       - name: Configure permanent Android release signing
         script: |
           python3 - <<'PY'
@@ -103,7 +103,7 @@ workflows:
           s = p.read_text()
           s, count = re.subn(r'android:label="[^"]*"', 'android:label="Monarch Codex"', s, count=1)
           if count == 0:
-              s, count = re.subn(r'(<application\\b)', r'\\1 android:label="Monarch Codex"', s, count=1)
+              s, count = re.subn(r'(<application\b)', r'\1 android:label="Monarch Codex"', s, count=1)
           assert count == 1, "Could not set Monarch Codex app display name in Android manifest"
           p.write_text(s)
           assert 'android:label="Monarch Codex"' in p.read_text()
