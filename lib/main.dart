@@ -844,58 +844,133 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
 
   Widget _buildHub() {
     final dark = widget.dark;
-    Widget shortcut(String title, String subtitle, IconData icon, VoidCallback onTap) => Card(
-      color: dark ? panel : Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17), side: BorderSide(color: gold.withValues(alpha: .25))),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(17),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(15),
-          child: Row(children: [
-            Container(width: 46, height: 46, decoration: BoxDecoration(color: gold.withValues(alpha: .13), borderRadius: BorderRadius.circular(13)), child: Icon(icon, color: gold, size: 25)),
-            const SizedBox(width: 13),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
-              const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(color: muted, fontSize: 11, height: 1.35)),
-            ])),
-            const Icon(Icons.chevron_right_rounded, color: gold),
+    final bg = dark ? const Color(0xFF09090B) : const Color(0xFFF7F5EF);
+    final card = dark ? const Color(0xFF151518) : Colors.white;
+    final fg = dark ? Colors.white : ink;
+    Widget sectionCard(String title, String subtitle, IconData icon, String route, {bool wide = false}) =>
+      Card(
+        color: card,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: gold.withValues(alpha: dark ? .30 : .45)),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => SovereignNativeSectionPage(
+              type: route, dark: dark, uid: widget.uid, api: widget.api,
+            ),
+          )),
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 43, height: 43,
+                decoration: BoxDecoration(
+                  color: gold.withValues(alpha: .13),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(icon, color: gold, size: 24),
+              ),
+              const SizedBox(height: 13),
+              Text(title, style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 5),
+              Text(subtitle, style: const TextStyle(color: muted, fontSize: 11, height: 1.4)),
+              const SizedBox(height: 8),
+              const Align(alignment: Alignment.centerRight, child: Icon(Icons.arrow_forward_rounded, color: gold, size: 18)),
+            ]),
+          ),
+        ),
+      );
+    return Container(
+      color: bg,
+      child: ListView(padding: const EdgeInsets.fromLTRB(15, 12, 15, 24), children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: gold.withValues(alpha: .75)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: dark
+                ? const [Color(0xFF30250C), Color(0xFF171511), Color(0xFF101012)]
+                : const [Color(0xFFFFF2C6), Color(0xFFFFFFFF), Color(0xFFF2E9D0)],
+            ),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(color: gold.withValues(alpha: .16), borderRadius: BorderRadius.circular(14)),
+                child: const Icon(Icons.workspace_premium_rounded, color: gold, size: 27),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('SOVEREIGN DESK', style: TextStyle(color: gold, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                SizedBox(height: 4),
+                Text('MONARCH CODEX · MEMBER WORKSPACE', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: .8)),
+              ])),
+            ]),
+            const SizedBox(height: 22),
+            Text('Welcome to your trading desk.', style: TextStyle(color: fg, fontSize: 23, height: 1.12, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 8),
+            const Text('A focused workspace for market insights, trading records and learning.', style: TextStyle(color: muted, fontSize: 12, height: 1.5)),
+            const SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: gold.withValues(alpha: .09), borderRadius: BorderRadius.circular(13), border: Border.all(color: gold.withValues(alpha: .25))),
+              child: Row(children: [
+                const Icon(Icons.verified_user_outlined, color: gold, size: 19),
+                const SizedBox(width: 9),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('YOUR MEMBER ID', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const SizedBox(height: 3),
+                  Text(widget.uid.isEmpty ? 'UID unavailable' : widget.uid, style: const TextStyle(color: gold, fontSize: 12, fontWeight: FontWeight.w900)),
+                ])),
+              ]),
+            ),
           ]),
         ),
-      ),
-    );
-    void openRequest(String type) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => SovereignNativeSectionPage(type: type, dark: dark, uid: widget.uid, api: widget.api)));
-    return ListView(padding: const EdgeInsets.all(15), children: [
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: dark ? panel : Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: gold.withValues(alpha: .55))),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: gold.withValues(alpha: .15), borderRadius: BorderRadius.circular(14)), child: const Icon(Icons.support_agent_rounded, color: gold, size: 29)),
-          const SizedBox(height: 15),
-          const Text('SOVEREIGN DESK', style: TextStyle(color: gold, fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: .5)),
-          const SizedBox(height: 8),
-          const Text('Your home for trading signals, access, market tools and support.', style: TextStyle(color: muted, height: 1.5)),
-          const SizedBox(height: 15),
-          const Text('YOUR MONARCH UID', style: TextStyle(color: muted, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
-          const SizedBox(height: 4),
-          SelectableText(widget.uid.isEmpty ? 'UID unavailable' : widget.uid, style: const TextStyle(color: gold, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 22),
+        Row(children: [
+          const Expanded(child: Text('YOUR WORKSPACE', style: TextStyle(color: gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2))),
+          Text('7 SECTIONS', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800)),
         ]),
-      ),
-      const SizedBox(height: 18),
-      const Text('QUICK ACCESS', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 11)),
-      const SizedBox(height: 8),
-      shortcut('Trading Signals', 'Browse signals and their entry, stop-loss and target details.', Icons.candlestick_chart_rounded, () => openRequest('Signal Access')),
-      shortcut('Free Signals', 'Request free access and check eligibility with the team.', Icons.campaign_outlined, () => openRequest('Free Signals')),
-      shortcut('Premium Signals', 'Ask about paid access and current subscription options.', Icons.workspace_premium_outlined, () => openRequest('Premium Access')),
-      shortcut('Free Signal Slots & Countdown', 'Check eligibility and confirm current availability.', Icons.timer_outlined, () => openRequest('Free Signal Slots')),
-      shortcut('Chat with Sovereign Desk Admin', 'Open the dedicated native support screen.', Icons.forum_outlined, () => openRequest('Admin Chat')),
-      shortcut('Watchlist', 'Review instruments and notes from the desk.', Icons.visibility_outlined, () => openRequest('Watchlist')),
-      shortcut('Trading Guidance & Academy', 'Continue learning through available tutorials and guidance.', Icons.school_outlined, () => openRequest('Trading Guidance')),
-      shortcut('Other Sovereign Desk Services', 'Ask about mentorship and other available services.', Icons.grid_view_rounded, () => openRequest('Other Services')),
-      const SizedBox(height: 8),
-      const Text('Trading involves risk. Signals and guidance do not guarantee profits. Paid access and availability must be confirmed by the team.', style: TextStyle(color: muted, fontSize: 11, height: 1.5)),
-    ]);
+        const SizedBox(height: 10),
+        LayoutBuilder(builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 620 ? 3 : 2;
+          final items = <Widget>[
+            sectionCard('Signals', 'Published trading ideas and updates.', Icons.candlestick_chart_rounded, 'Signal Access'),
+            sectionCard('Watchlist', 'The desk’s instrument list.', Icons.visibility_rounded, 'Watchlist'),
+            sectionCard('History', 'Review available past records.', Icons.history_rounded, 'Signal Access'),
+            sectionCard('Market Brief', 'Market context and guidance.', Icons.newspaper_rounded, 'Trading Guidance'),
+            sectionCard('Journal', 'Keep your trading process in focus.', Icons.menu_book_rounded, 'Trading Guidance'),
+            sectionCard('Performance', 'Review progress and risk habits.', Icons.insights_rounded, 'Trading Guidance'),
+            sectionCard('Academy', 'Continue with member learning.', Icons.school_rounded, 'Trading Guidance'),
+          ];
+          return GridView.count(
+            crossAxisCount: columns,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: columns == 2 ? 1.05 : 1.0,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            children: items,
+          );
+        }),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(color: card, borderRadius: BorderRadius.circular(15), border: Border.all(color: gold.withValues(alpha: .22))),
+          child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.shield_outlined, color: gold, size: 20),
+            SizedBox(width: 10),
+            Expanded(child: Text('Trading involves risk. Signals and educational material do not guarantee profits. Live market data and historical records appear only when connected to verified sources.', style: TextStyle(color: muted, fontSize: 11, height: 1.5))),
+          ]),
+        ),
+      ]),
+    );
   }
 
   Widget _buildRequestForm() {
