@@ -189,6 +189,11 @@ class MonarchApi {
   Future<Map<String,dynamic>> adminAuditEvents() async => Map<String,dynamic>.from((await dio.get('admin/audit-events')).data as Map);
   Future<Map<String,dynamic>> adminAnalytics() async => Map<String,dynamic>.from((await dio.get('admin/analytics')).data as Map);
   Future<Map<String,dynamic>> adminSecurity() async => Map<String,dynamic>.from((await dio.get('admin/security')).data as Map);
+  Future<Map<String,dynamic>> sovereignChatMessages() async => Map<String,dynamic>.from((await dio.get('sovereign/chat/messages')).data as Map);
+  Future<Map<String,dynamic>> sendSovereignChatMessage(String body) async => Map<String,dynamic>.from((await dio.post('sovereign/chat/messages',data:{'body':body})).data as Map);
+  Future<void> deleteSovereignChatMessage(int id) async { await dio.delete('sovereign/chat/messages/$id'); }
+  Future<Map<String,dynamic>> reportSovereignChatMessage({required int id,required String reason}) async => Map<String,dynamic>.from((await dio.post('sovereign/chat/messages/$id/report',data:{'reason':reason})).data as Map);
+
 
   Future<Map<String,dynamic>> adminAcademy() async => Map<String,dynamic>.from((await dio.get('admin/academy')).data as Map);
   Future<Map<String,dynamic>> createAcademyCategory({required String name,required String description,required int sortOrder}) async => Map<String,dynamic>.from((await dio.post('admin/academy/categories',data:{'name':name,'description':description,'sortOrder':sortOrder})).data as Map);
