@@ -865,9 +865,9 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => SovereignNativeSectionPage(
-              type: route, dark: dark, uid: widget.uid, api: widget.api,
-            ),
+            builder: (_) => route == 'Private Chat'
+                ? SovereignPrivateChatPage(api: widget.api, dark: dark)
+                : SovereignNativeSectionPage(type: route, dark: dark, uid: widget.uid, api: widget.api),
           )),
           child: Padding(
             padding: const EdgeInsets.all(15),
@@ -942,7 +942,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
         const SizedBox(height: 22),
         Row(children: [
           const Expanded(child: Text('YOUR WORKSPACE', style: TextStyle(color: gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.2))),
-          Text('7 SECTIONS', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800)),
+          Text('8 SECTIONS', style: TextStyle(color: muted, fontSize: 9, fontWeight: FontWeight.w800)),
         ]),
         const SizedBox(height: 10),
         LayoutBuilder(builder: (context, constraints) {
@@ -955,6 +955,7 @@ class _SovereignRequestPageState extends State<SovereignRequestPage> {
             sectionCard('Journal', 'Keep your trading process in focus.', Icons.menu_book_rounded, 'Trading Guidance'),
             sectionCard('Performance', 'Review progress and risk habits.', Icons.insights_rounded, 'Trading Guidance'),
             sectionCard('Academy', 'Continue with member learning.', Icons.school_rounded, 'Trading Guidance'),
+            sectionCard('Private Chat', 'Message Sovereign Desk support privately.', Icons.mark_email_unread_outlined, 'Private Chat'),
           ];
           return GridView.count(
             crossAxisCount: columns,
