@@ -15,7 +15,7 @@ workflows:
     scripts:
       - name: Generate Android project files
         script: |
-          flutter create --platforms=android --project-name mobile --org online.monarchcodex .
+          flutter create --platforms=android --project-name monarch_codex --org online.monarchcodex .
       - name: Configure permanent Android release signing
         script: |
           python3 - <<'PY'
