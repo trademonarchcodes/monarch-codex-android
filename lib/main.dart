@@ -164,6 +164,8 @@ class MonarchApi {
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
   Future<Map<String,dynamic>> network() async => Map<String,dynamic>.from((await dio.get('network')).data as Map);
+  Future<Map<String,dynamic>> networkProfile() async => Map<String,dynamic>.from((await dio.get('network/profile')).data as Map);
+  Future<Map<String,dynamic>> submitNetworkProfile({required String nickname,required String bio}) async => Map<String,dynamic>.from((await dio.post('network/profile',data:{'nickname':nickname,'bio':bio})).data as Map);
   Future<Map<String,dynamic>> leaderboard({String period='all_time',bool admin=false,bool sovereign=false}) async {
     final path=sovereign?'sovereign/leaderboard':admin?'admin/network/leaderboard':'leaderboard';
     return Map<String,dynamic>.from((await dio.get(path,queryParameters:{'period':period})).data as Map);
@@ -1295,6 +1297,30 @@ class _NetworkPageState extends State<NetworkPage>{
   });
 }
 
+
+class NetworkProfilePage extends StatefulWidget {
+  const NetworkProfilePage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<NetworkProfilePage> createState()=>_NetworkProfilePageState();
+}
+class _NetworkProfilePageState extends State<NetworkProfilePage>{
+  final name=TextEditingController(),bio=TextEditingController();
+  bool loading=true,busy=false;String? status,error;
+  @override void initState(){super.initState();load();}
+  @override void dispose(){name.dispose();bio.dispose();super.dispose();}
+  Future<void> load()async{try{final d=await widget.api.networkProfile();final p=Map<String,dynamic>.from(d['profile'] as Map);name.text=(p['pending_nickname']??p['nickname']??p['full_name']??'').toString();bio.text=(p['pending_bio']??p['bio']??'').toString();if(mounted)setState(()=>status=(p['profile_status']??'draft').toString());}catch(e){if(mounted)setState(()=>error=apiErrorMessage(e,fallback:'Your network profile could not be loaded.'));}finally{if(mounted)setState(()=>loading=false);}}
+  Future<void> submit()async{if(name.text.trim().isEmpty)return;setState(()=>busy=true);try{final d=await widget.api.submitNetworkProfile(nickname:name.text.trim(),bio:bio.text.trim());if(mounted)setState(()=>status=(d['status']??'pending').toString());if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Profile changes submitted for admin review.')));}catch(e){if(mounted)setState(()=>error=apiErrorMessage(e,fallback:'Your profile could not be submitted.'));}finally{if(mounted)setState(()=>busy=false);}}
+  @override Widget build(BuildContext context)=>loading?const Center(child:CircularProgressIndicator(color:gold)):ListView(padding:const EdgeInsets.all(16),children:[
+    const Text('MY NETWORK PROFILE',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+    const SizedBox(height:8),const Text('Submit your public display name and biography. The Founder/Admin reviews all changes before publication.',style:TextStyle(color:muted)),
+    if(status!=null)Padding(padding:const EdgeInsets.symmetric(vertical:12),child:Text('Current publication status: '+status!,style:const TextStyle(color:gold,fontWeight:FontWeight.w800))),
+    if(error!=null)Message(text:error!,success:false),
+    TextField(controller:name,maxLength:80,decoration:const InputDecoration(labelText:'Public display name',border:OutlineInputBorder())),
+    const SizedBox(height:12),TextField(controller:bio,maxLength:600,maxLines:4,decoration:const InputDecoration(labelText:'Biography',border:OutlineInputBorder())),
+    const SizedBox(height:16),FilledButton.icon(onPressed:busy?null:submit,icon:const Icon(Icons.send),label:Text(busy?'SUBMITTING…':'SUBMIT FOR APPROVAL'),style:FilledButton.styleFrom(backgroundColor:gold,foregroundColor:ink)),
+  ]);
+}
+
 class NetworkLeaderboardPage extends StatefulWidget {
   const NetworkLeaderboardPage({super.key,required this.api,required this.dark,this.admin=false,this.sovereign=false});
   final MonarchApi api; final bool dark; final bool admin; final bool sovereign;
@@ -1559,6 +1585,7 @@ class _ShellState extends State<Shell> {
         quick('Verify KYC', Icons.shield_outlined, () => page('KYC Verification'), dark),
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
         quick('Network', Icons.account_tree_outlined, () => page('Network'), dark),
+        quick('My Network Profile', Icons.badge_outlined, () => page('My Network Profile'), dark),
         quick('Leaderboard', Icons.emoji_events_outlined, () => page('Leaderboard'), dark),
         quick('Roles & Requests', Icons.badge_outlined, () => page(null, 5), dark),
         quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
@@ -1596,6 +1623,7 @@ class _ShellState extends State<Shell> {
 
   Widget specialPage(String p, bool dark) {
     if (p == 'Network') return NetworkPage(api: widget.api, dark: dark);
+    if (p == 'My Network Profile') return NetworkProfilePage(api: widget.api, dark: dark);
     if (p == 'Leaderboard') return NetworkLeaderboardPage(api: widget.api, dark: dark);
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
