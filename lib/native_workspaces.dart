@@ -307,6 +307,7 @@ class _AdminShellState extends State<AdminShell>{
     if(index==0){scaffoldKey.currentState?.closeDrawer();setState(()=>selected=0);reload();return;}
     if(index==4){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>RoleManagerPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
      if(index==13){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>AdminMembersPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark)));if(mounted)setState(()=>selected=0);return;}
+    if(index==19){scaffoldKey.currentState?.closeDrawer();await Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>NetworkLeaderboardPage(api:widget.api,dark:Theme.of(context).brightness==Brightness.dark,admin:true)));if(mounted)setState(()=>selected=0);return;}
     scaffoldKey.currentState?.closeDrawer();
     setState(()=>selected=index);
     final dark=Theme.of(context).brightness==Brightness.dark;
@@ -408,6 +409,7 @@ class _AdminShellState extends State<AdminShell>{
              _navItem(15,Icons.support_agent,'Help & Support'),
              _navItem(16,Icons.forum_outlined,'Community'),
             _navItem(17,Icons.school_outlined,'Academy management'),
+            _navItem(19,Icons.emoji_events_outlined,'Network leaderboard'),
             if((widget.member['adminRole']??'').toString().trim().toLowerCase().replaceAll(' ','_')=='super_admin') _navItem(18,Icons.support_agent_rounded,'Sovereign Desk admin'),
           ])),
           Divider(color:dark?const Color(0xFF4C4029):const Color(0xFFE4DFD2),height:1),
@@ -738,6 +740,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
     {'title': 'Activity log', 'route': '/sovereign-admin/activity', 'icon': Icons.history},
     {'title': 'Telegram groups & channels', 'route': '/sovereign-admin/telegram', 'icon': Icons.send_rounded},
     {'title': 'Live markets', 'route': '/market-movers.html', 'icon': Icons.public},
+    {'title': 'Network leaderboard', 'route': '/sovereign-admin/leaderboard', 'icon': Icons.emoji_events_outlined},
   ];
 
   @override
@@ -770,6 +773,7 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
       '/sovereign-admin/events':'events','/sovereign-admin/watchlist':'watchlist',
       '/sovereign-admin/governance':'governance','/sovereign-admin/activity':'activity',
       '/sovereign-admin/telegram':'telegram',
+      '/sovereign-admin/leaderboard':'leaderboard',
       '/market-movers.html':'markets',
     };
     final section=sections[route]??'overview';
@@ -777,7 +781,9 @@ class _SovereignAdminShellState extends State<SovereignAdminShell> {
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => section == 'telegram'
           ? TelegramAdminPage(api: widget.api, member: widget.member)
-          : SovereignDeskSectionPage(api: widget.api, section: section, title: title),
+          : section == 'leaderboard'
+              ? NetworkLeaderboardPage(api: widget.api, dark: Theme.of(context).brightness == Brightness.dark, sovereign: true)
+              : SovereignDeskSectionPage(api: widget.api, section: section, title: title),
     ));
     if(mounted)setState(()=>selectedDestination=0);
   }
