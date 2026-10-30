@@ -1,0 +1,30 @@
+name: Validate network and leaderboard Android build
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [codex/referral-network-leaderboards]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.8'
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Run Flutter tests
+        run: flutter test
+      - name: Compile native Android debug APK
+        run: flutter build apk --debug
+      - name: Upload validation APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: monarch-codex-network-validation-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
