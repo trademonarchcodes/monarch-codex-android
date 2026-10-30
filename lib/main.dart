@@ -1270,7 +1270,7 @@ class _NetworkPageState extends State<NetworkPage>{
   void reload()=>setState(()=>future=widget.api.network());
   Widget node(Map<String,dynamic> item){
     final children=(item['children'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
-    final roles=(item['roles'] as List? ?? const []).join(' · ');
+    final roles=(item['accountType']=='Founder'?'Founder':'')+((item['roles'] as List? ?? const []).isEmpty?'':(item['accountType']=='Founder'?' · ':'')+(item['roles'] as List).join(' · '));
     final name=(item['name']??'Monarch member').toString();
     final username=(item['username']??'').toString();
     final matches=search.isEmpty||('$name $username '+(item['monarchId']??'').toString()+' $roles').toLowerCase().contains(search.toLowerCase());
