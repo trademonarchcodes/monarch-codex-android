@@ -163,6 +163,11 @@ class MonarchApi {
       Map<String,dynamic>.from((await dio.post('investments/$packageId/purchase',data:{'idempotencyKey':idempotencyKey})).data as Map);
   Future<Map<String, dynamic>> kycStatus() async => Map<String, dynamic>.from((await dio.get('kyc/status')).data as Map);
   Future<Map<String, dynamic>> referrals() async => Map<String, dynamic>.from((await dio.get('referrals')).data as Map);
+  Future<Map<String,dynamic>> network() async => Map<String,dynamic>.from((await dio.get('network')).data as Map);
+  Future<Map<String,dynamic>> leaderboard({String period='all_time',bool admin=false,bool sovereign=false}) async {
+    final path=sovereign?'sovereign/leaderboard':admin?'admin/network/leaderboard':'leaderboard';
+    return Map<String,dynamic>.from((await dio.get(path,queryParameters:{'period':period})).data as Map);
+  }
   Future<Map<String,dynamic>> academy() async => Map<String,dynamic>.from((await dio.get('academy')).data as Map);
   Future<Map<String,dynamic>> purchaseAcademyAccess() async => Map<String,dynamic>.from((await dio.post('academy/access/purchase')).data as Map);
   Future<Map<String,dynamic>> replayAcademyLesson({required int lessonId,required String idempotencyKey}) async => Map<String,dynamic>.from((await dio.post('academy/lessons/$lessonId/replay',data:{'idempotencyKey':idempotencyKey})).data as Map);
@@ -1250,6 +1255,76 @@ class _OnlineCooperativePageState extends State<OnlineCooperativePage>{
   });
 }
 
+
+class NetworkPage extends StatefulWidget {
+  const NetworkPage({super.key,required this.api,required this.dark});
+  final MonarchApi api; final bool dark;
+  @override State<NetworkPage> createState()=>_NetworkPageState();
+}
+class _NetworkPageState extends State<NetworkPage>{
+  late Future<Map<String,dynamic>> future;
+  String search='';
+  @override void initState(){super.initState();future=widget.api.network();}
+  void reload()=>setState(()=>future=widget.api.network());
+  Widget node(Map<String,dynamic> item){
+    final children=(item['children'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+    final roles=(item['roles'] as List? ?? const []).join(' · ');
+    final name=(item['name']??'Monarch member').toString();
+    final username=(item['username']??'').toString();
+    final matches=search.isEmpty||('$name $username '+(item['monarchId']??'').toString()+' $roles').toLowerCase().contains(search.toLowerCase());
+    if(search.isNotEmpty&&!matches&&children.isEmpty)return const SizedBox.shrink();
+    return Card(color:widget.dark?panel:Colors.white,margin:const EdgeInsets.symmetric(vertical:5),shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(14),side:BorderSide(color:gold.withValues(alpha:.25))),child:ExpansionTile(
+      initiallyExpanded:(item['depth'] as num? ?? 0).toInt()<1,
+      leading:CircleAvatar(backgroundColor:const Color(0xFF30250C),child:Text(name.isNotEmpty?name[0].toUpperCase():'M',style:const TextStyle(color:gold,fontWeight:FontWeight.w900))),
+      title:Text(name,style:const TextStyle(fontWeight:FontWeight.w900)),
+      subtitle:Text('@'+username+(roles.isEmpty?'':' · '+roles)+'\n'+(item['directRegistered']??0).toString()+' direct registrations · '+(item['publishedDescendants']??0).toString()+' descendants',style:const TextStyle(color:muted,fontSize:10)),
+      children:children.map(node).toList(),
+    ));
+  }
+  @override Widget build(BuildContext context)=>FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+    if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+    if(s.hasError)return ListView(padding:const EdgeInsets.all(16),children:[Message(text:apiErrorMessage(s.error!,fallback:'The network could not be loaded.'),success:false),FilledButton(onPressed:reload,child:const Text('Retry'))]);
+    final root=s.data?['tree'] is Map?Map<String,dynamic>.from(s.data!['tree'] as Map):null;
+    return RefreshIndicator(color:gold,onRefresh:()async=>reload(),child:ListView(padding:const EdgeInsets.all(15),children:[
+      const Text('MONARCH CODEX NETWORK',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:6),const Text('Explore the published referral network.',style:TextStyle(color:muted)),
+      const SizedBox(height:12),TextField(decoration:const InputDecoration(prefixIcon:Icon(Icons.search),hintText:'Search visible members'),onChanged:(v)=>setState(()=>search=v)),
+      const SizedBox(height:12),if(root==null)const Text('The Founder network has not been published yet.') else node(root),
+      const SizedBox(height:12),OutlinedButton.icon(onPressed:()=>Navigator.of(context).push(MaterialPageRoute<void>(builder:(_)=>NetworkLeaderboardPage(api:widget.api,dark:widget.dark))),icon:const Icon(Icons.emoji_events_outlined),label:const Text('Open leaderboard')),
+    ]));
+  });
+}
+
+class NetworkLeaderboardPage extends StatefulWidget {
+  const NetworkLeaderboardPage({super.key,required this.api,required this.dark,this.admin=false,this.sovereign=false});
+  final MonarchApi api; final bool dark; final bool admin; final bool sovereign;
+  @override State<NetworkLeaderboardPage> createState()=>_NetworkLeaderboardPageState();
+}
+class _NetworkLeaderboardPageState extends State<NetworkLeaderboardPage>{
+  String period='monthly';
+  late Future<Map<String,dynamic>> future;
+  @override void initState(){super.initState();future=widget.api.leaderboard(period:period,admin:widget.admin,sovereign:widget.sovereign);}
+  void change(String value){setState((){period=value;future=widget.api.leaderboard(period:value,admin:widget.admin,sovereign:widget.sovereign);});}
+  @override Widget build(BuildContext context)=>Column(children:[
+    Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      const Text('MONARCH CODEX LEADERBOARD',style:TextStyle(color:gold,fontWeight:FontWeight.w900,letterSpacing:1)),
+      const SizedBox(height:8),const Text('Celebrate consistent community growth.',style:TextStyle(color:muted)),
+      const SizedBox(height:12),SegmentedButton<String>(segments:const [ButtonSegment(value:'monthly',label:Text('Monthly')),ButtonSegment(value:'all_time',label:Text('All-time'))],selected:{period},onSelectionChanged:(v)=>change(v.first)),
+    ])),
+    Expanded(child:FutureBuilder<Map<String,dynamic>>(future:future,builder:(context,s){
+      if(s.connectionState!=ConnectionState.done)return const Center(child:CircularProgressIndicator(color:gold));
+      if(s.hasError)return ListView(padding:const EdgeInsets.all(16),children:[Message(text:apiErrorMessage(s.error!,fallback:'Leaderboard could not be loaded.'),success:false),FilledButton(onPressed:()=>change(period),child:const Text('Retry'))]);
+      final rows=(s.data?['rows'] as List? ?? const []).whereType<Map>().map((x)=>Map<String,dynamic>.from(x)).toList();
+      return RefreshIndicator(color:gold,onRefresh:()async=>change(period),child:ListView(padding:const EdgeInsets.fromLTRB(14,0,14,20),children:[
+        if(rows.isEmpty)const Padding(padding:EdgeInsets.all(22),child:Text('No published members have qualified for this leaderboard yet.',textAlign:TextAlign.center,style:TextStyle(color:muted))),
+        if(rows.isNotEmpty)Row(crossAxisAlignment:CrossAxisAlignment.end,children:List.generate(rows.take(3).length,(i){final row=rows[i];return Expanded(child:Container(margin:const EdgeInsets.all(4),padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:const Color(0xFF201A0E),borderRadius:BorderRadius.circular(14),border:Border.all(color:gold.withValues(alpha:.6))),child:Column(children:[Icon(i==0?Icons.emoji_events:i==1?Icons.military_tech:Icons.workspace_premium,color:gold,size:25),Text('#'+(row['rank']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)),Text((row['display_name']??'Member').toString(),maxLines:2,overflow:TextOverflow.ellipsis,textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w800)),Text((row['direct_referrals']??0).toString()+' referrals',style:const TextStyle(color:muted,fontSize:10))])));})),
+        const SizedBox(height:10),
+        for(final row in rows)Card(color:widget.dark?panel:Colors.white,child:ListTile(leading:CircleAvatar(backgroundColor:const Color(0xFF30250C),child:Text('#'+(row['rank']??'').toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900,fontSize:11))),title:Text((row['display_name']??'Member').toString(),style:const TextStyle(fontWeight:FontWeight.w800)),subtitle:Text('@'+(row['username']??'').toString()+' · '+(row['network_size']??0).toString()+' network members',style:const TextStyle(color:muted,fontSize:11)),trailing:Text((row['direct_referrals']??0).toString(),style:const TextStyle(color:gold,fontWeight:FontWeight.w900)))),
+      ]));
+    })),
+  ]);
+}
+
 class Shell extends StatefulWidget {
   const Shell({super.key, required this.api, required this.member, required this.signOut, required this.light, required this.toggleTheme});
   final MonarchApi api;
@@ -1483,6 +1558,8 @@ class _ShellState extends State<Shell> {
         quick('Announcements', Icons.campaign_outlined, () => page('Notifications'), dark),
         quick('Verify KYC', Icons.shield_outlined, () => page('KYC Verification'), dark),
         quick('Referrals', Icons.share_outlined, () => page('Referrals'), dark),
+        quick('Network', Icons.account_tree_outlined, () => page('Network'), dark),
+        quick('Leaderboard', Icons.emoji_events_outlined, () => page('Leaderboard'), dark),
         quick('Roles & Requests', Icons.badge_outlined, () => page(null, 5), dark),
         quick('Online Coop', Icons.link_rounded, () => page('Online Cooperative'), dark),
         quick('Social Links', Icons.public, () => page('Social Links'), dark),
@@ -1518,6 +1595,8 @@ class _ShellState extends State<Shell> {
   }
 
   Widget specialPage(String p, bool dark) {
+    if (p == 'Network') return NetworkPage(api: widget.api, dark: dark);
+    if (p == 'Leaderboard') return NetworkLeaderboardPage(api: widget.api, dark: dark);
     if (p == 'Wallet Transfer') return WalletTransferPage(api: widget.api, dark: dark, onDone: refresh);
     if (p == 'Academy') return AcademyPage(api: widget.api, dark: dark);
     if (p == 'Free Signals' || p == 'Sovereign Desk') return SovereignRequestPage(api: widget.api, dark: dark, uid: (widget.member['uid'] ?? widget.member['monarch_uid'] ?? '').toString(), initialType: p);
